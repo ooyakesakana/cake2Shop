@@ -1,180 +1,190 @@
 <?php
 App::uses('AppController', 'Controller');
 
-class ProcurementsController extends AppController
+class SalesController extends AppController
 {
 	public function index()
 	{
 		$this->layout = 'layout';
-		$this->set('titleForLayout', '仕入管理メニュー');
-	}
-
-	public function purchases()
-	{
-		$this->layout = 'layout';
-		$this->loadModel('Purchase');
-		$purchases = $this->Purchase->find('all', ['order' => ['Purchase.purchase_date' => 'DESC', 'Purchase.id' => 'DESC'], 'recursive' => -1]);
-		$this->set(compact('purchases'));
-	}
-
-	public function add_purchase()
-	{
-		$this->layout = 'layout';
-		$this->loadModel('Purchase');
-		if ($this->request->is('post')) {
-			$d = $this->request->data['Purchase'];
-			$d['total_purchase_cost'] = (float)$d['item_amount'] + (float)$d['intl_shipping'] + (float)$d['customs_duty'] + (float)$d['import_tax'] + (float)$d['agency_fee'] + (float)$d['other_cost'];
-			$this->Purchase->create();
-			if ($this->Purchase->save($d)) {
-				return $this->redirect(['action' => 'purchase_detail', $this->Purchase->id]);
-			}
-		}
-	}
-
-	public function purchase_detail($purchaseId = null)
-	{
-		$this->layout = 'layout';
-		$this->loadModel('Purchase');
-		$this->loadModel('PurchaseDetail');
-		$purchase = $this->Purchase->findById($purchaseId);
-		if (!$purchase) {
-			throw new NotFoundException('仕入が見つかりません');
-		}
-		if ($this->request->is('post')) {
-			$row = $this->request->data['PurchaseDetail'];
-			$row['purchase_id'] = $purchaseId;
-			$row['line_subtotal'] = (float)$row['quantity'] * (float)$row['unit_price'];
-			$this->PurchaseDetail->create();
-			$this->PurchaseDetail->save($row);
-			return $this->redirect(['action' => 'purchase_detail', $purchaseId]);
-		}
-		$details = $this->PurchaseDetail->find('all', ['conditions' => ['purchase_id' => $purchaseId], 'recursive' => -1]);
-		$this->set(compact('purchase', 'details'));
-	}
-
-	public function productize($purchaseId = null)
-	{
-		$this->layout = 'layout';
-		$this->loadModel('Purchase');
-		$this->loadModel('PurchaseDetail');
-		$this->loadModel('Productization');
-		$this->loadModel('ProductizationMaterial');
-		$this->loadModel('InventoryLot');
-		$this->loadModel('Item');
-		$purchase = $this->Purchase->findById($purchaseId);
-		if (!$purchase) {
-			throw new NotFoundException('仕入が見つかりません');
-		}
-		$details = $this->PurchaseDetail->find('all', ['conditions' => ['purchase_id' => $purchaseId], 'recursive' => -1]);
-		$items = $this->Item->find('list', ['fields' => ['Item.item_code', 'Item.item_name']]);
-
-		// 原価配賦プレビュー（商品代金比率 or 数量比）
-		$allocationMethod = $this->request->data('Productization.allocation_method') ?: ($purchase['Purchase']['allocation_method'] ?? 'value_ratio');
-		$nonItemCost = (float)$purchase['Purchase']['total_purchase_cost'] - (float)$purchase['Purchase']['item_amount'];
-		$baseTotal = 0.0;
-		foreach ($details as $d) {
-			$baseTotal += ($allocationMethod === 'qty_ratio') ? (float)$d['PurchaseDetail']['quantity'] : (float)$d['PurchaseDetail']['line_subtotal'];
-		}
-		$allocationPreview = [];
-		foreach ($details as $d) {
-			$base = ($allocationMethod === 'qty_ratio') ? (float)$d['PurchaseDetail']['quantity'] : (float)$d['PurchaseDetail']['line_subtotal'];
-			$ratio = ($baseTotal > 0) ? ($base / $baseTotal) : 0;
-			$allocationPreview[$d['PurchaseDetail']['id']] = round($nonItemCost * $ratio, 2);
-		}
-
-		if ($this->request->is('post')) {
-			$head = $this->request->data['Productization'];
-			$head['purchase_id'] = $purchaseId;
-			$head['allocation_method'] = $allocationMethod;
-			if (empty($head['unit_cost_manual']) && !empty($head['allocated_amount']) && !empty($head['completed_qty'])) {
-				$head['unit_cost'] = (float)$head['allocated_amount'] / (float)$head['completed_qty'];
-			} else {
-				$head['unit_cost'] = (float)$head['unit_cost_manual'];
-			}
-			$head['inventory_reflected'] = 0;
-			$this->Productization->create();
-			if ($this->Productization->save($head)) {
-				$pid = $this->Productization->id;
-				foreach ((array)$this->request->data['ProductizationMaterial'] as $m) {
-					if (empty($m['purchase_detail_id'])) {
-						continue;
-					}
-					$m['productization_id'] = $pid;
-					if (empty($m['allocated_amount']) && isset($allocationPreview[$m['purchase_detail_id']])) {
-						$m['allocated_amount'] = $allocationPreview[$m['purchase_detail_id']];
-					}
-					$this->ProductizationMaterial->create();
-					$this->ProductizationMaterial->save($m);
-				}
-				if ((int)$head['inventory_reflect_now'] === 1) {
-					$this->_reflectInventoryLot($pid);
-				}
-				return $this->redirect(['action' => 'productization_history']);
-			}
-		}
-		$this->set(compact('purchase', 'details', 'items', 'allocationMethod', 'allocationPreview', 'nonItemCost'));
-	}
-
-	private function _reflectInventoryLot($productizationId)
-	{
-		$this->loadModel('Productization');
-		$this->loadModel('InventoryLot');
-		$p = $this->Productization->findById($productizationId);
-		if (!$p || (int)$p['Productization']['inventory_reflected'] === 1) {
-			return;
-		}
-		$lot = ['item_code' => $p['Productization']['item_code'], 'purchase_id' => $p['Productization']['purchase_id'], 'productization_id' => $productizationId, 'quantity' => $p['Productization']['completed_qty'], 'remaining_qty' => $p['Productization']['completed_qty'], 'unit_cost' => $p['Productization']['unit_cost'], 'registered_date' => date('Y-m-d'), 'memo' => $p['Productization']['memo']];
-		$this->InventoryLot->create();
-		$this->InventoryLot->save($lot);
-		$this->Productization->id = $productizationId;
-		$this->Productization->saveField('inventory_reflected', 1);
-	}
-
-	public function productization_history()
-	{
-		$this->layout = 'layout';
-		$this->loadModel('Productization');
-		$rows = $this->Productization->find('all', ['order' => ['Productization.id' => 'DESC'], 'recursive' => -1]);
-		$this->set('rows', $rows);
-	}
-	public function inventory_lots()
-	{
-		$this->layout = 'layout';
-		$this->loadModel('InventoryLot');
-		$rows = $this->InventoryLot->find('all', ['order' => ['InventoryLot.item_code' => 'ASC', 'InventoryLot.id' => 'ASC'], 'recursive' => -1]);
-		$this->set('rows', $rows);
-	}
-	public function provisional_items()
-	{
-		$this->layout = 'layout';
-		$this->loadModel('ProvisionalItem');
-		if ($this->request->is('post')) {
-			$this->ProvisionalItem->create();
-			$this->ProvisionalItem->save($this->request->data['ProvisionalItem']);
-			return $this->redirect(['action' => 'provisional_items']);
-		}
-		$rows = $this->ProvisionalItem->find('all', ['order' => ['ProvisionalItem.id' => 'DESC'], 'recursive' => -1]);
-		$this->set('rows', $rows);
-	}
-	public function report()
-	{
-		$this->layout = 'layout';
-		$from = $this->request->query('from') ?: date('Y-01-01');
-		$to = $this->request->query('to') ?: date('Y-m-d');
+		$this->set('titleForLayout', '売上管理メニュー');
 		$this->loadModel('Sale');
-		$this->loadModel('Purchase');
-		$sales = $this->Sale->find('all', ['conditions' => ['Sale.sale_date >=' => $from, 'Sale.sale_date <=' => $to], 'recursive' => 1]);
-		$purchases = $this->Purchase->find('all', ['conditions' => ['Purchase.purchase_date >=' => $from, 'Purchase.purchase_date <=' => $to], 'recursive' => -1]);
-		$totalSales = 0;
-		foreach ($sales as $s) {
-			foreach ((array)$s['SaleDetail'] as $d) {
-				$totalSales += ((float)$d['quantity'] * (float)$d['unit_price']);
+
+		$sales = $this->Sale->find('all', [
+			'order' => ['Sale.sale_date' => 'DESC', 'Sale.id' => 'DESC'],
+			'recursive' => 0,
+		]);
+
+		$this->set(compact('sales'));
+	}
+
+
+	public function main()
+	{
+		return $this->index();
+	}
+
+	public function add()
+	{
+		$this->layout = 'layout';
+		$this->set('titleForLayout', '売上登録');
+		$this->loadModel('Sale');
+		$this->loadModel('SaleDetail');
+		$this->loadModel('Shop');
+		$this->loadModel('Item');
+		$this->loadModel('ShippingFee');
+		$this->loadModel('ShopInventory');
+
+		$shops = $this->Shop->find('list', [
+			'fields' => ['Shop.shop_id', 'Shop.shop_name'],
+			'order' => ['Shop.shop_name' => 'ASC'],
+		]);
+
+		$shippingFeeRows = $this->ShippingFee->find('all', [
+			'fields' => ['ShippingFee.id', 'ShippingFee.shipping_fee_name', 'ShippingFee.shipping_fee'],
+			'order' => ['ShippingFee.shipping_fee' => 'ASC'],
+			'recursive' => -1,
+		]);
+		$shippingFees = [];
+		foreach ($shippingFeeRows as $row) {
+			$shippingFees[$row['ShippingFee']['id']] = $row['ShippingFee']['shipping_fee_name'] . ' (' . number_format((float)$row['ShippingFee']['shipping_fee']) . '円)';
+		}
+
+		$shopRows = $this->Shop->find('all', [
+			'fields' => ['Shop.shop_id', 'Shop.default_shipping_fee'],
+			'recursive' => -1,
+		]);
+		$shopShippingMap = [];
+		foreach ($shopRows as $row) {
+			$shopShippingMap[(int)$row['Shop']['shop_id']] = $row['Shop']['default_shipping_fee'];
+		}
+
+		$items = $this->Item->find('all', [
+			'fields' => ['Item.item_code', 'Item.item_name'],
+			'order' => ['Item.item_code' => 'ASC'],
+			'recursive' => -1,
+		]);
+
+		if ($this->request->is('post')) {
+			$data = $this->request->data;
+			$sale = $data['Sale'];
+			$details = isset($data['SaleDetail']) ? (array)$data['SaleDetail'] : [];
+
+			$validDetails = [];
+			$subtotal = 0;
+			foreach ($details as $d) {
+				$itemCode = trim((string)($d['item_code'] ?? ''));
+				$qty = (float)($d['quantity'] ?? 0);
+				$price = (float)($d['unit_price'] ?? 0);
+				if ($itemCode === '' && $qty <= 0 && $price <= 0) {
+					continue;
+				}
+				if ($itemCode === '' || $qty <= 0 || $price < 0) {
+					$this->Session->setFlash('売上明細の 商品 / 数量 / 単価 は必須です。', 'default', [], 'errMsg');
+					$this->set(compact('shops', 'items', 'shippingFees', 'shopShippingMap'));
+					return;
+				}
+				$line = $qty * $price;
+				$subtotal += $line;
+				$validDetails[] = [
+					'item_code' => $itemCode,
+					'quantity' => $qty,
+					'unit_price' => $price,
+					'line_amount' => $line,
+				];
+			}
+
+			if (empty($validDetails)) {
+				$this->Session->setFlash('有効な売上明細がありません。', 'default', [], 'errMsg');
+				$this->set(compact('shops', 'items', 'shippingFees', 'shopShippingMap'));
+				return;
+			}
+
+			$shippingFee = 0;
+			if (!empty($sale['shipping_fee_id']) && isset($shippingFees[(int)$sale['shipping_fee_id']])) {
+				foreach ($shippingFeeRows as $row) {
+					if ((int)$row['ShippingFee']['id'] === (int)$sale['shipping_fee_id']) {
+						$shippingFee = (float)$row['ShippingFee']['shipping_fee'];
+						break;
+					}
+				}
+			}
+
+			$shop = $this->Shop->find('first', [
+				'conditions' => ['Shop.shop_id' => (int)$sale['shop_id']],
+				'recursive' => -1,
+			]);
+			$freeThreshold = $shop ? (float)($shop['Shop']['fee_shipping_threshold'] ?? 0) : 0;
+			$feePercent = $shop ? (float)($shop['Shop']['fee_percent'] ?? 0) : 0;
+
+			$actualShipping = ($freeThreshold > 0 && $subtotal >= $freeThreshold) ? 0 : $shippingFee;
+			$feeAmount = floor($subtotal * ($feePercent / 100));
+			$netSales = $subtotal + $actualShipping - $feeAmount;
+
+			$saveSale = [
+				'shop_id' => (int)$sale['shop_id'],
+				'order_no' => trim((string)($sale['order_no'] ?? '')),
+				'sale_date' => $sale['sale_date'],
+				'shipping_fee_id' => !empty($sale['shipping_fee_id']) ? (int)$sale['shipping_fee_id'] : null,
+				'subtotal' => $subtotal,
+				'actual_shipping' => $actualShipping,
+				'fee_amount' => $feeAmount,
+				'net_sales' => $netSales,
+			];
+
+			$ds = $this->Sale->getDataSource();
+			$ds->begin();
+			try {
+				$this->Sale->create();
+				if (!$this->Sale->save($saveSale)) {
+					throw new Exception('売上ヘッダ保存に失敗しました。');
+				}
+				$saleId = $this->Sale->id;
+
+				foreach ($validDetails as $d) {
+					$d['sale_id'] = $saleId;
+					$this->SaleDetail->create();
+					if (!$this->SaleDetail->save($d)) {
+						throw new Exception('売上明細保存に失敗しました。');
+					}
+
+					$this->ShopInventory->updateAll(
+						['ShopInventory.stock_quantity' => 'ShopInventory.stock_quantity - ' . (float)$d['quantity']],
+						['ShopInventory.shop_id' => (int)$saveSale['shop_id'], 'ShopInventory.item_code' => $d['item_code']]
+					);
+				}
+
+				$ds->commit();
+				$this->Session->setFlash('売上を登録しました。', 'default', [], 'success');
+				return $this->redirect(['action' => 'index']);
+			} catch (Exception $e) {
+				$ds->rollback();
+				$this->Session->setFlash('売上登録に失敗しました: ' . $e->getMessage(), 'default', [], 'errMsg');
 			}
 		}
-		$totalPurchase = 0;
-		foreach ($purchases as $p) {
-			$totalPurchase += (float)$p['Purchase']['total_purchase_cost'];
+
+		$this->set(compact('shops', 'items', 'shippingFees', 'shopShippingMap'));
+	}
+
+	public function invoice_pdf($id = null)
+	{
+		$this->layout = 'pdf';
+		$this->loadModel('Sale');
+		$sale = $this->Sale->find('first', [
+			'conditions' => ['Sale.id' => $id],
+			'recursive' => 2,
+		]);
+
+		if (!$sale) {
+			throw new NotFoundException('売上データが見つかりません。');
 		}
-		$this->set(compact('from', 'to', 'totalSales', 'totalPurchase'));
+
+		$subtotal = 0;
+		foreach ((array)$sale['SaleDetail'] as $d) {
+			$subtotal += (float)$d['quantity'] * (float)$d['unit_price'];
+		}
+		$actualShipping = (float)$sale['Sale']['actual_shipping'];
+		$total = $subtotal + $actualShipping;
+
+		$this->set(compact('sale', 'subtotal', 'actualShipping', 'total'));
 	}
 }
