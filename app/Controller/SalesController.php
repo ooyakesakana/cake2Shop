@@ -20,8 +20,8 @@ class SalesController extends AppController
 
 	public function main()
 	{
-		$this->index();
-		$this->render('index');
+		$this->layout = 'layout';
+		$this->set('titleForLayout', '売上管理メニュー');
 	}
 
 	public function add()
