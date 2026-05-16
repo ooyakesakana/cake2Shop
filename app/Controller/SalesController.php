@@ -20,17 +20,8 @@ class SalesController extends AppController
 
 	public function main()
 	{
-<<<<<<< ours
-<<<<<<< ours
-		return $this->index();
-=======
 		$this->index();
 		$this->render('index');
->>>>>>> theirs
-=======
-		$this->index();
-		$this->render('index');
->>>>>>> theirs
 	}
 
 	public function add()
