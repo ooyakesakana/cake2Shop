@@ -14,8 +14,8 @@ $this->end(); ?>
 	<tr>
 		<td><?= $this->Form->input('part_code', ['label' => false]); ?></td>
 		<td><?= $this->Form->input('name', ['label' => false]); ?></td>
-		<td><?= $this->Form->input('quantity', ['label' => false]); ?></td>
-		<td><?= $this->Form->input('unit_price', ['label' => false]); ?></td>
+		<td><?= $this->Form->input('quantity', ['label' => false, 'after' => ' 個']); ?></td>
+		<td><?= $this->Form->input('unit_price', ['label' => false, 'after' => ' 円']); ?></td>
 		<td><?= $this->Form->input('memo', ['label' => false]); ?></td>
 		<td><?= $this->Form->submit('追加', ['class' => 'sbm-btn btn--orange']); ?></td>
 	</tr>

@@ -15,9 +15,9 @@ $this->end(); ?>
 		</tr>
 		<tr>
 			<td><?= $this->Form->input('item_code', ['type' => 'select', 'options' => $items, 'label' => false, 'default' => $selectedItemCode]); ?></td>
-			<td><?= $this->Form->input('adjust_qty', ['type' => 'number', 'step' => '0.01', 'label' => false]); ?></td>
+			<td><?= $this->Form->input('adjust_qty', ['type' => 'number', 'step' => '0.01', 'label' => false, 'after' => ' 個']); ?></td>
 			<td><?= $this->Form->input('shop_id', ['type' => 'select', 'options' => $shops, 'empty' => '未登録在庫から減算', 'label' => false]); ?></td>
-			<td><?= $this->Form->input('shipping_loss', ['type' => 'number', 'step' => '0.01', 'label' => false, 'value' => 0]); ?></td>
+			<td><?= $this->Form->input('shipping_loss', ['type' => 'number', 'step' => '0.01', 'label' => false, 'value' => 0, 'after' => ' 円']); ?></td>
 			<td><?= $this->Form->input('reason', ['label' => false, 'value' => '初期不良/返金']); ?></td>
 			<td><?= $this->Form->input('memo', ['label' => false]); ?></td>
 		</tr>

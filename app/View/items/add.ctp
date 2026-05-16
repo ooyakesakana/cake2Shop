@@ -79,9 +79,9 @@ echo $this->Form->create('Item', [
 			<td><?= $this->Form->input('base_price', [
 					'type' => 'text',
 					'id' => 'base_price',
-					'before' => '￥',
 					'label' => false,
 					'error' => false,
+					'after' => ' 円',
 				]); ?>
 				<?= $this->Form->error('base_price', null, [
 					'class' => 'error-text'

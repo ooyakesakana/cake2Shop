@@ -16,7 +16,7 @@ $this->end(); ?>
 			<td><?= $this->Form->input('keyword', ['label' => false, 'value' => $keyword]); ?></td>
 			<td><?= $this->Form->input('category', ['type' => 'select', 'label' => false, 'options' => $categoryList, 'empty' => 'すべて', 'value' => $category]); ?></td>
 			<td><?= $this->Form->input('stock_compare', ['type' => 'select', 'label' => false, 'options' => ['gte' => '以上', 'lte' => '以下', 'eq' => '一致'], 'empty' => '条件なし', 'value' => $stockCompare]); ?></td>
-			<td><?= $this->Form->input('stock_value', ['label' => false, 'value' => $stockValue]); ?></td>
+			<td><?= $this->Form->input('stock_value', ['label' => false, 'value' => $stockValue, 'after' => ' 個']); ?></td>
 			<td><?= $this->Form->submit('検索', ['class' => 'sbm-btn btn--blue']); ?></td>
 		</tr>
 	</table><?= $this->Form->end(); ?>
@@ -68,6 +68,7 @@ $this->end(); ?>
 						$priceRow = !empty($priceMap[$code][$sid]) ? $priceMap[$code][$sid] : null;
 						$salePrice = $priceRow ? (float)$priceRow['sale_price'] : 0;
 						$feePercent = (float)$shop['Shop']['fee_percent'];
+						$isShippingIncluded = (int)$shop['Shop']['is_shipping_included'] === 1;
 						$profitRate = 0;
 						if ($salePrice > 0) {
 							$profitRate = (($salePrice - ($salePrice * ($feePercent / 100)) - $avgCost) / $salePrice) * 100;
@@ -78,12 +79,13 @@ $this->end(); ?>
 							<?= $this->Form->create(false, ['url' => ['action' => 'quick_update_stock']]); ?>
 							<?= $this->Form->input('item_code', ['type' => 'hidden', 'value' => $code]); ?>
 							<?= $this->Form->input('shop_id', ['type' => 'hidden', 'value' => $sid]); ?>
-							<?= $this->Form->input('stock_quantity', ['type' => 'select', 'label' => false, 'options' => array_combine(range(0, 200), range(0, 200)), 'value' => $currentStock]); ?>
+							<?= $this->Form->input('stock_quantity', ['type' => 'select', 'label' => false, 'options' => array_combine(range(0, 200), range(0, 200)), 'value' => $currentStock, 'after' => ' 個']); ?>
 							<?= $this->Form->submit('確定', ['class' => 'sbm-btn btn--purple']); ?>
 							<?= $this->Form->end(); ?>
 						</td>
 						<td>
 							販売価格: <?= $salePrice > 0 ? h(number_format($salePrice)) . '円' : '-'; ?><br>
+							送料込: <?= $isShippingIncluded ? '注文時送料を差引' : '-'; ?><br>
 							利益率: <?= $salePrice > 0 ? h(number_format($profitRate, 1)) . '%' : '-'; ?>
 						</td>
 					<?php endforeach; ?>

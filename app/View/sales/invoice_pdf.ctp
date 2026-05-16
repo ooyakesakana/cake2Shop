@@ -20,5 +20,5 @@
 	<?php endforeach; ?>
 </table>
 <p>小計: <?= number_format($subtotal); ?> 円</p>
-<p>送料: <?= number_format($actualShipping); ?> 円（送料無料ライン考慮済み）</p>
+<p>送料: <?= number_format($actualShipping); ?> 円</p>
 <p><strong>合計: <?= number_format($total); ?> 円</strong></p>

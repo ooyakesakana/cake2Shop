@@ -12,6 +12,7 @@ echo $this->Form->create('ShippingFee', []);
 				<tr>
 					<th>配送方法名</th>
 					<th>送料</th>
+					<th>メモ</th>
 					<th>追加</th>
 				</tr>
 				<tr>
@@ -29,9 +30,16 @@ echo $this->Form->create('ShippingFee', []);
 							'id' => 'shipping_fee',
 							'placeholder' => '(例)140',
 							'error' => false,
-							'after' => '円',
+							'after' => ' 円',
 						]) ?>
 						<?= $this->Form->error('shipping_fee', null, ['class' => 'error-text']); ?></td>
+					<td><?= $this->Form->input('memo', [
+							'type' => 'textarea',
+							'label' => false,
+							'rows' => 2,
+							'placeholder' => '(例)厚さ3cm以下・重量50g以下まで',
+							'error' => false,
+						]) ?></td>
 					<td>
 						<?= $this->Form->submit('登録', [
 							'class' => 'sbm-btn btn--orange',
@@ -47,17 +55,19 @@ echo $this->Form->create('ShippingFee', []);
 		<div class="change-sipping-fee">
 			<table class="shop-insert-table">
 				<tr>
-					<th colspan="3">登録済み送料設定一覧</th>
+					<th colspan="4">登録済み送料設定一覧</th>
 				</tr>
 				<tr>
 					<th>配送方法名</th>
 					<th>送料</th>
+					<th>メモ</th>
 					<th>変更/削除</th>
 				</tr>
 				<?php foreach ($shipping_fee_list as $list): ?>
 					<tr>
 						<td><?= h($list['ShippingFee']['shipping_fee_name']) ?></td>
-						<td><?= h($list['ShippingFee']['shipping_fee']) ?> 円</td>
+						<td><?= h(number_format((float)$list['ShippingFee']['shipping_fee'])) ?> 円</td>
+						<td><?= !empty($list['ShippingFee']['memo']) ? nl2br(h($list['ShippingFee']['memo'])) : '-' ?></td>
 						<td><?= $this->Html->link(
 								'変更',
 								[
@@ -77,9 +87,9 @@ echo $this->Form->create('ShippingFee', []);
 					</tr>
 					<?php if ($edit_id === (int)$list['ShippingFee']['id']): ?>
 						<tr>
-							<td colspan="3">
+							<td colspan="4">
 								<?= $this->Form->create('ShippingFee', [
-									'style' => 'display:flex; align-items:center; justify-content:space-evenly; width100%;'
+									'style' => 'display:flex; align-items:center; justify-content:space-evenly; width:100%;'
 								]) ?>
 								<?= $this->Form->hidden('id', ['value' => $list['ShippingFee']['id']]) ?>
 								<?= $this->Form->input('shipping_fee_name', [
@@ -89,7 +99,13 @@ echo $this->Form->create('ShippingFee', []);
 								<?= $this->Form->input('shipping_fee', [
 									'label' => '送料　',
 									'value' => $list['ShippingFee']['shipping_fee'],
-									'after' => '円'
+									'after' => ' 円'
+								]) ?>
+								<?= $this->Form->input('memo', [
+									'type' => 'textarea',
+									'label' => 'メモ　',
+									'rows' => 2,
+									'value' => $list['ShippingFee']['memo']
 								]) ?>
 								<?= $this->Form->submit('確定', ['name' => 'update', 'class' => 'sbm-btn btn--orange']) ?>
 								<?= $this->Form->end() ?>

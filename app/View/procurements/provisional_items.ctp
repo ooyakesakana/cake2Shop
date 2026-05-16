@@ -1,6 +1,7 @@
 <?php $this->start('subMenu');
 echo $this->element('procurements_menu');
 $this->end(); ?>
+<div class="main-area">
 <h2>仮商品情報</h2>
 <?= $this->Form->create('ProvisionalItem'); ?>
 <table>
@@ -15,8 +16,8 @@ $this->end(); ?>
 	<tr>
 		<td><?= $this->Form->input('provisional_code', ['label' => false]); ?></td>
 		<td><?= $this->Form->input('name', ['label' => false]); ?></td>
-		<td><?= $this->Form->input('quantity', ['label' => false]); ?></td>
-		<td><?= $this->Form->input('unit_price', ['label' => false]); ?></td>
+		<td><?= $this->Form->input('quantity', ['label' => false, 'after' => ' 個']); ?></td>
+		<td><?= $this->Form->input('unit_price', ['label' => false, 'after' => ' 円']); ?></td>
 		<td><?= $this->Form->input('memo', ['label' => false]); ?></td>
 		<td><?= $this->Form->submit('登録', ['class' => 'sbm-btn btn--orange']); ?></td>
 	</tr>
@@ -36,3 +37,4 @@ $this->end(); ?>
 			<td><?= h($r['ProvisionalItem']['unit_price']) ?></td>
 		</tr><?php endforeach; ?>
 </table>
+</div>

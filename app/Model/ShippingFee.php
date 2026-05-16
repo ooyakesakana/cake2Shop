@@ -28,13 +28,13 @@ class ShippingFee extends AppModel
     public $validate = [
         'shipping_fee_name' => [
             'notBlank' => [
-                'rule' => 'notEmpty',
+                'rule' => 'notBlank',
                 'message' => '設定名を入れてください'
             ]
         ],
         'shipping_fee' => [
             'notBlank' => [
-                'rule' => 'notEmpty',
+                'rule' => 'notBlank',
                 'message' => '送料を入れてください'
             ],
             'numeric' => [

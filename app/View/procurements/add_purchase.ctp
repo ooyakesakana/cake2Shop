@@ -14,12 +14,15 @@ $this->end(); ?>
 		<th>仮仕入れ</th>
 	</tr>
 	<tr>
-		<td><?= $this->Form->input('purchase_date', ['type' => 'text', 'label' => false, 'placeholder' => 'YYYY-MM-DD']); ?></td>
+		<td>
+			<?= $this->Form->input('purchase_date', ['type' => 'text', 'label' => false, 'placeholder' => 'YYYY-MM-DD', 'id' => 'purchase-date-text']); ?>
+			<input type="date" id="purchase-date-picker">
+		</td>
 		<td><?= $this->Form->input('supplier_name', ['label' => false]); ?></td>
 		<td><?= $this->Form->input('purchase_no', ['label' => false]); ?></td>
-		<td><?= $this->Form->input('item_amount', ['label' => false, 'value' => '0']); ?></td>
-		<td><?= $this->Form->input('intl_shipping', ['label' => false, 'value' => '0']); ?></td>
-		<td><?= $this->Form->input('customs_duty', ['label' => false, 'value' => '0']); ?></td>
+		<td><?= $this->Form->input('item_amount', ['label' => false, 'value' => '0', 'after' => ' 円']); ?></td>
+		<td><?= $this->Form->input('intl_shipping', ['label' => false, 'value' => '0', 'after' => ' 円']); ?></td>
+		<td><?= $this->Form->input('customs_duty', ['label' => false, 'value' => '0', 'after' => ' 円']); ?></td>
 		<td><?= $this->Form->checkbox('is_temporary'); ?></td>
 	</tr>
 	<tr>
@@ -43,8 +46,8 @@ $this->end(); ?>
 	<?php for ($i = 0; $i < 3; $i++): ?>
 		<tr>
 			<td><?= $this->Form->input("PurchaseDetail.$i.source_item_name", ['label' => false]); ?></td>
-			<td><?= $this->Form->input("PurchaseDetail.$i.unit_price", ['label' => false, 'type' => 'number', 'step' => '0.01', 'min' => '0']); ?></td>
-			<td><?= $this->Form->input("PurchaseDetail.$i.quantity", ['label' => false, 'type' => 'number', 'step' => '1', 'min' => '0']); ?></td>
+			<td><?= $this->Form->input("PurchaseDetail.$i.unit_price", ['label' => false, 'type' => 'number', 'step' => '0.01', 'min' => '0', 'after' => ' 円']); ?></td>
+			<td><?= $this->Form->input("PurchaseDetail.$i.quantity", ['label' => false, 'type' => 'number', 'step' => '1', 'min' => '0', 'after' => ' 個']); ?></td>
 			<td><?= $this->Form->input("PurchaseDetail.$i.item_code", ['label' => false]); ?></td>
 			<td><?= $this->Form->checkbox("PurchaseDetail.$i.is_supply"); ?></td>
 			<td><?= $this->Form->input("PurchaseDetail.$i.memo", ['label' => false]); ?></td>
@@ -57,6 +60,20 @@ $this->end(); ?>
 <?= $this->Form->end(); ?>
 
 <script>
+	const purchaseDateText = document.getElementById('purchase-date-text');
+	const purchaseDatePicker = document.getElementById('purchase-date-picker');
+	if (purchaseDateText && purchaseDatePicker) {
+		if (purchaseDateText.value) {
+			purchaseDatePicker.value = purchaseDateText.value;
+		}
+		purchaseDatePicker.addEventListener('change', function() {
+			purchaseDateText.value = purchaseDatePicker.value;
+		});
+		purchaseDateText.addEventListener('change', function() {
+			purchaseDatePicker.value = purchaseDateText.value;
+		});
+	}
+
 	let rowIndex = 3;
 
 	function addDetailRow() {
@@ -64,8 +81,8 @@ $this->end(); ?>
 		const tr = document.createElement('tr');
 		tr.innerHTML = `
 <td><input name="data[PurchaseDetail][${rowIndex}][source_item_name]" type="text"></td>
-<td><input name="data[PurchaseDetail][${rowIndex}][unit_price]" type="number" step="0.01" min="0"></td>
-<td><input name="data[PurchaseDetail][${rowIndex}][quantity]" type="number" step="1" min="0"></td>
+<td><input name="data[PurchaseDetail][${rowIndex}][unit_price]" type="number" step="0.01" min="0"> 円</td>
+<td><input name="data[PurchaseDetail][${rowIndex}][quantity]" type="number" step="1" min="0"> 個</td>
 <td><input name="data[PurchaseDetail][${rowIndex}][item_code]" type="text"></td>
 <td><input name="data[PurchaseDetail][${rowIndex}][is_supply]" type="checkbox" value="1"></td>
 <td><input name="data[PurchaseDetail][${rowIndex}][memo]" type="text"></td>`;

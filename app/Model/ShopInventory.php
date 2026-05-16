@@ -9,10 +9,10 @@ class ShopInventory extends AppModel
 	];
 
 	public $validate = [
-		'shop_id' => ['rule' => 'notEmpty', 'message' => 'ショップを選択してください'],
-		'item_code' => ['rule' => 'notEmpty', 'message' => '商品コードを入力してください'],
+		'shop_id' => ['rule' => 'notBlank', 'message' => 'ショップを選択してください'],
+		'item_code' => ['rule' => 'notBlank', 'message' => '商品コードを入力してください'],
 		'stock_quantity' => [
-			'notBlank' => ['rule' => 'notEmpty', 'message' => '在庫数を入力してください'],
+			'notBlank' => ['rule' => 'notBlank', 'message' => '在庫数を入力してください'],
 			'numeric' => ['rule' => 'numeric', 'message' => '在庫数は数字で入力してください']
 		],
 	];

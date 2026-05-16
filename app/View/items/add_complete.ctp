@@ -18,10 +18,10 @@ $this->end();
 			<th>登録</th>
 		</tr>
 		<tr>
-			<td><?= $this->Form->input('ShopEntry.shop_id', ['type' => 'select', 'options' => Hash::combine($shops, '{n}.Shop.shop_id', '{n}.Shop.shop_name'), 'label' => false, 'empty' => '選択']); ?></td>
-			<td><?= $this->Form->input('ShopEntry.sale_price', ['type' => 'number', 'step' => '0.01', 'label' => false, 'id' => 'sale_price']); ?></td>
-			<td><input type="text" id="margin_rate" readonly></td>
-			<td><?= $this->Form->input('ShopEntry.stock_quantity', ['type' => 'number', 'step' => '0.01', 'label' => false]); ?></td>
+			<td><?= $this->Form->input('ShopEntry.shop_id', ['type' => 'select', 'options' => Hash::combine($shops, '{n}.Shop.shop_id', '{n}.Shop.shop_name'), 'label' => false, 'empty' => '選択', 'id' => 'shop_id']); ?></td>
+			<td><?= $this->Form->input('ShopEntry.sale_price', ['type' => 'number', 'step' => '0.01', 'label' => false, 'id' => 'sale_price', 'after' => ' 円']); ?></td>
+			<td><input type="text" id="margin_rate" readonly> %</td>
+			<td><?= $this->Form->input('ShopEntry.stock_quantity', ['type' => 'number', 'step' => '0.01', 'label' => false, 'after' => ' 個']); ?></td>
 			<td><?= $this->Form->submit('登録', ['class' => 'sbm-btn btn--orange']); ?></td>
 		</tr>
 	</table>
@@ -53,8 +53,10 @@ $this->end();
 	<script>
 		(function() {
 			var p = document.getElementById('sale_price');
+			var shop = document.getElementById('shop_id');
 			var out = document.getElementById('margin_rate');
 			var cost = <?= json_encode((float)($item['Item']['base_price'] ?? 0)); ?>;
+			var feePercents = <?= json_encode(Hash::combine($shops, '{n}.Shop.shop_id', '{n}.Shop.fee_percent')); ?>;
 
 			function calc() {
 				var price = parseFloat(p.value || 0);
@@ -62,10 +64,16 @@ $this->end();
 					out.value = '';
 					return;
 				}
-				out.value = ((price - cost) / price * 100).toFixed(2) + '%';
+				var shopId = shop ? shop.value : '';
+				var feePercent = parseFloat(feePercents[shopId] || 0);
+				var feeAmount = price * (feePercent / 100);
+				out.value = ((price - feeAmount - cost) / price * 100).toFixed(2);
 			}
 			if (p) {
 				p.addEventListener('input', calc);
+			}
+			if (shop) {
+				shop.addEventListener('change', calc);
 			}
 		})();
 	</script>

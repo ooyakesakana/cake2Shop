@@ -32,7 +32,7 @@ class Item extends AppModel
     public $validate = [
         'item_code' => [
             'notBlank' => [
-                'rule' => 'notEmpty',
+                'rule' => 'notBlank',
                 'message' => '商品コードを入力してください'
             ],
             'maxLength' => [
@@ -46,7 +46,7 @@ class Item extends AppModel
         ],
         'item_name' => [
             'notBlank' => [
-                'rule' => 'notEmpty',
+                'rule' => 'notBlank',
                 'message' => '商品名を入力してください'
             ]
         ],

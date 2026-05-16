@@ -17,9 +17,9 @@ $this->end(); ?>
 	<tr>
 		<td><?= $this->Form->input('allocation_method', ['type' => 'select', 'label' => false, 'options' => ['value_ratio' => '商品代金比率', 'qty_ratio' => '数量比'], 'default' => $allocationMethod]); ?></td>
 		<td><?= $this->Form->input('item_code', ['type' => 'select', 'label' => false, 'options' => $items]); ?></td>
-		<td><?= $this->Form->input('completed_qty', ['label' => false]); ?></td>
-		<td><?= $this->Form->input('allocated_amount', ['label' => false]); ?></td>
-		<td><?= $this->Form->input('unit_cost_manual', ['label' => false]); ?></td>
+		<td><?= $this->Form->input('completed_qty', ['label' => false, 'after' => ' 個']); ?></td>
+		<td><?= $this->Form->input('allocated_amount', ['label' => false, 'after' => ' 円']); ?></td>
+		<td><?= $this->Form->input('unit_cost_manual', ['label' => false, 'after' => ' 円']); ?></td>
 		<td><?= $this->Form->input('memo', ['label' => false]); ?></td>
 		<td><?= $this->Form->input('inventory_reflect_now', ['type' => 'checkbox', 'label' => false, 'value' => 1]); ?></td>
 	</tr>
@@ -36,9 +36,9 @@ $this->end(); ?>
 		<tr>
 			<td><?= h($d['PurchaseDetail']['name']) ?>
 				<?= $this->Form->input("ProductizationMaterial.$i.purchase_detail_id", ['type' => 'hidden', 'value' => $d['PurchaseDetail']['id']]); ?></td>
-			<td><?= $this->Form->input("ProductizationMaterial.$i.used_qty", ['label' => false]); ?></td>
-			<td><?= $this->Form->input("ProductizationMaterial.$i.defect_qty", ['label' => false]); ?></td>
-			<td><?= $this->Form->input("ProductizationMaterial.$i.allocated_amount", ['label' => false, 'value' => $allocationPreview[$d['PurchaseDetail']['id']] ?? 0]); ?></td>
+			<td><?= $this->Form->input("ProductizationMaterial.$i.used_qty", ['label' => false, 'after' => ' 個']); ?></td>
+			<td><?= $this->Form->input("ProductizationMaterial.$i.defect_qty", ['label' => false, 'after' => ' 個']); ?></td>
+			<td><?= $this->Form->input("ProductizationMaterial.$i.allocated_amount", ['label' => false, 'value' => $allocationPreview[$d['PurchaseDetail']['id']] ?? 0, 'after' => ' 円']); ?></td>
 		</tr>
 	<?php endforeach; ?>
 </table>

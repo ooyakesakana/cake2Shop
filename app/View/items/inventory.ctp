@@ -15,7 +15,7 @@ echo $this->Form->create('ShopInventory');
 		<tr>
 			<td><?= $this->Form->input('shop_id', ['type' => 'select', 'options' => $shops, 'label' => false, 'empty' => '選択してください', 'default' => $selectedItemCode]); ?></td>
 			<td><?= $this->Form->input('item_code', ['type' => 'select', 'options' => $items, 'label' => false, 'empty' => '選択してください', 'default' => $selectedItemCode]); ?></td>
-			<td><?= $this->Form->input('stock_quantity', ['type' => 'number', 'label' => false]); ?></td>
+			<td><?= $this->Form->input('stock_quantity', ['type' => 'number', 'label' => false, 'after' => ' 個']); ?></td>
 			<td><?= $this->Form->submit('保存', ['class' => 'sbm-btn btn--orange']); ?></td>
 		</tr>
 	</table>

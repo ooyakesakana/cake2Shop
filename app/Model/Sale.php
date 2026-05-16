@@ -6,6 +6,7 @@ class Sale extends AppModel
 	public $belongsTo = [
 		'Shop' => ['className' => 'Shop', 'foreignKey' => 'shop_id'],
 		'ShippingFee' => ['className' => 'ShippingFee', 'foreignKey' => 'shipping_fee_id'],
+		'ActualShippingFee' => ['className' => 'ShippingFee', 'foreignKey' => 'actual_shipping_fee_id'],
 	];
 
 	public $hasMany = [
@@ -13,7 +14,7 @@ class Sale extends AppModel
 	];
 
 	public $validate = [
-		'shop_id' => ['rule' => 'notEmpty', 'message' => 'ショップを選択してください'],
+		'shop_id' => ['rule' => 'notBlank', 'message' => 'ショップを選択してください'],
 		'sale_date' => ['rule' => 'date', 'message' => '販売日を入力してください'],
 	];
 }

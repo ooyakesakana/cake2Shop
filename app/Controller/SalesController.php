@@ -37,6 +37,7 @@ class SalesController extends AppController
 
 		$shops = $this->Shop->find('list', [
 			'fields' => ['Shop.shop_id', 'Shop.shop_name'],
+			'conditions' => ['Shop.is_active' => 1],
 			'order' => ['Shop.shop_name' => 'ASC'],
 		]);
 
@@ -46,12 +47,17 @@ class SalesController extends AppController
 			'recursive' => -1,
 		]);
 		$shippingFees = [];
+		$shippingFeeAmountMap = [];
 		foreach ($shippingFeeRows as $row) {
-			$shippingFees[$row['ShippingFee']['id']] = $row['ShippingFee']['shipping_fee_name'] . ' (' . number_format((float)$row['ShippingFee']['shipping_fee']) . '円)';
+			$id = (int)$row['ShippingFee']['id'];
+			$shippingFeeAmount = (float)$row['ShippingFee']['shipping_fee'];
+			$shippingFees[$id] = $row['ShippingFee']['shipping_fee_name'] . ' (' . number_format($shippingFeeAmount) . '円)';
+			$shippingFeeAmountMap[$id] = $shippingFeeAmount;
 		}
 
 		$shopRows = $this->Shop->find('all', [
 			'fields' => ['Shop.shop_id', 'Shop.default_shipping_fee'],
+			'conditions' => ['Shop.is_active' => 1],
 			'recursive' => -1,
 		]);
 		$shopShippingMap = [];
@@ -100,34 +106,32 @@ class SalesController extends AppController
 				return;
 			}
 
-			$shippingFee = 0;
-			if (!empty($sale['shipping_fee_id']) && isset($shippingFees[(int)$sale['shipping_fee_id']])) {
-				foreach ($shippingFeeRows as $row) {
-					if ((int)$row['ShippingFee']['id'] === (int)$sale['shipping_fee_id']) {
-						$shippingFee = (float)$row['ShippingFee']['shipping_fee'];
-						break;
-					}
-				}
-			}
-
 			$shop = $this->Shop->find('first', [
 				'conditions' => ['Shop.shop_id' => (int)$sale['shop_id']],
 				'recursive' => -1,
 			]);
 			$freeThreshold = $shop ? (float)($shop['Shop']['fee_shipping_threshold'] ?? 0) : 0;
 			$feePercent = $shop ? (float)($shop['Shop']['fee_percent'] ?? 0) : 0;
+			$isShippingIncluded = $shop ? (int)($shop['Shop']['is_shipping_included'] ?? 0) === 1 : false;
+			$shippingFeeId = !empty($sale['shipping_fee_id']) ? (int)$sale['shipping_fee_id'] : 0;
+			$shippingFee = isset($shippingFeeAmountMap[$shippingFeeId]) ? $shippingFeeAmountMap[$shippingFeeId] : 0;
+			$actualShippingFeeId = !empty($sale['actual_shipping_fee_id']) ? (int)$sale['actual_shipping_fee_id'] : $shippingFeeId;
+			$actualShippingCost = isset($shippingFeeAmountMap[$actualShippingFeeId]) ? $shippingFeeAmountMap[$actualShippingFeeId] : $shippingFee;
 
-			$actualShipping = ($freeThreshold > 0 && $subtotal >= $freeThreshold) ? 0 : $shippingFee;
-			$feeAmount = floor($subtotal * ($feePercent / 100));
-			$netSales = $subtotal + $actualShipping - $feeAmount;
+			$actualShipping = $isShippingIncluded ? 0 : (($freeThreshold > 0 && $subtotal >= $freeThreshold) ? 0 : $shippingFee);
+			$feeBaseAmount = $subtotal + $actualShipping;
+			$feeAmount = floor($feeBaseAmount * ($feePercent / 100));
+			$netSales = $subtotal + $actualShipping - $actualShippingCost - $feeAmount;
 
 			$saveSale = [
 				'shop_id' => (int)$sale['shop_id'],
 				'order_no' => trim((string)($sale['order_no'] ?? '')),
 				'sale_date' => $sale['sale_date'],
-				'shipping_fee_id' => !empty($sale['shipping_fee_id']) ? (int)$sale['shipping_fee_id'] : null,
+				'shipping_fee_id' => $shippingFeeId > 0 ? $shippingFeeId : null,
+				'actual_shipping_fee_id' => $actualShippingFeeId > 0 ? $actualShippingFeeId : null,
 				'subtotal' => $subtotal,
 				'actual_shipping' => $actualShipping,
+				'actual_shipping_cost' => $actualShippingCost,
 				'fee_amount' => $feeAmount,
 				'net_sales' => $netSales,
 			];

@@ -150,7 +150,8 @@ class ItemsController extends AppController
 
         $this->loadModel('Shop');
         $shops = $this->Shop->find('all', [
-            'fields' => ['Shop.shop_id', 'Shop.shop_name', 'Shop.fee_percent'],
+            'fields' => ['Shop.shop_id', 'Shop.shop_name', 'Shop.fee_percent', 'Shop.is_shipping_included'],
+            'conditions' => ['Shop.is_active' => 1],
             'order' => ['Shop.shop_name' => 'ASC'],
             'recursive' => -1,
             'limit' => 4,
@@ -288,7 +289,14 @@ class ItemsController extends AppController
             if (!empty($d['shop_id'])) {
                 $price = (float)$d['sale_price'];
                 $cost = (float)($item['Item']['base_price'] ?? 0);
-                $marginRate = ($price > 0) ? (($price - $cost) / $price) * 100 : 0;
+                $shop = $this->Shop->find('first', [
+                    'conditions' => ['Shop.shop_id' => (int)$d['shop_id']],
+                    'fields' => ['Shop.fee_percent'],
+                    'recursive' => -1,
+                ]);
+                $feePercent = $shop ? (float)$shop['Shop']['fee_percent'] : 0;
+                $feeAmount = $price * ($feePercent / 100);
+                $marginRate = ($price > 0) ? (($price - $feeAmount - $cost) / $price) * 100 : 0;
 
                 $existingPrice = $this->ShopItemPrice->find('first', ['conditions' => ['shop_id' => $d['shop_id'], 'item_code' => $item['Item']['item_code']], 'recursive' => -1]);
                 if ($existingPrice) {
@@ -314,7 +322,7 @@ class ItemsController extends AppController
         }
 
         // 登録済みショップ一覧
-        $shops = $this->Shop->find('all', ['fields' => ['Shop.shop_id', 'Shop.shop_name'], 'order' => ['Shop.shop_name' => 'ASC'], 'recursive' => -1]);
+        $shops = $this->Shop->find('all', ['fields' => ['Shop.shop_id', 'Shop.shop_name', 'Shop.fee_percent', 'Shop.is_shipping_included'], 'conditions' => ['Shop.is_active' => 1], 'order' => ['Shop.shop_name' => 'ASC'], 'recursive' => -1]);
 
         // この商品のショップ別在庫を連想配列に
         $invRows = $this->ShopInventory->find('all', [
@@ -362,7 +370,7 @@ class ItemsController extends AppController
         $this->set('titleForLayout', '在庫登録');
         $this->loadModel('Shop');
         $this->loadModel('ShopInventory');
-        $shops = $this->Shop->find('list', ['fields' => ['Shop.shop_id', 'Shop.shop_name']]);
+        $shops = $this->Shop->find('list', ['fields' => ['Shop.shop_id', 'Shop.shop_name'], 'conditions' => ['Shop.is_active' => 1]]);
         $items = $this->Item->find('list', ['fields' => ['Item.item_code', 'Item.item_name']]);
         $selectedShopId = $this->request->query('shop_id');
         $selectedItemCode = $this->request->query('item_code');
@@ -424,7 +432,7 @@ class ItemsController extends AppController
         $this->loadModel('Expense');
 
         $items = $this->Item->find('list', ['fields' => ['Item.item_code', 'Item.item_name']]);
-        $shops = $this->Shop->find('list', ['fields' => ['Shop.shop_id', 'Shop.shop_name']]);
+        $shops = $this->Shop->find('list', ['fields' => ['Shop.shop_id', 'Shop.shop_name'], 'conditions' => ['Shop.is_active' => 1]]);
         $selectedItemCode = $this->request->query('item_code');
 
         if ($this->request->is('post')) {
