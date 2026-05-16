@@ -54,9 +54,9 @@ class ItemsController extends AppController
 
         // 商品サムネイルを取得（なければ sample.jpg）
         $thumbMap = [];
-        $this->loadModel('ItemImage');
-        $sources = $this->ItemImage->getDataSource()->listSources();
-        if (in_array($this->ItemImage->useTable, $sources, true)) {
+        $sources = $this->Item->getDataSource()->listSources();
+        if (in_array('item_images', $sources, true)) {
+            $this->loadModel('ItemImage');
             $imgRows = $this->ItemImage->find('all', [
                 'fields' => ['ItemImage.item_code', 'ItemImage.file_name'],
                 'conditions' => ['ItemImage.image_order' => 1],
@@ -93,9 +93,9 @@ class ItemsController extends AppController
 
         // ロット在庫合計（商品化/仕入由来）
         $lotMap = [];
-        $this->loadModel('InventoryLot');
-        $lotSources = $this->InventoryLot->getDataSource()->listSources();
-        if (in_array($this->InventoryLot->useTable, $lotSources, true)) {
+        $avgCostMap = [];
+        if (in_array('inventory_lots', $sources, true)) {
+            $this->loadModel('InventoryLot');
             $lotRows = $this->InventoryLot->find('all', [
                 'fields' => ['InventoryLot.item_code', 'SUM(InventoryLot.remaining_qty) AS lot_total'],
                 'group' => ['InventoryLot.item_code'],
@@ -104,17 +104,16 @@ class ItemsController extends AppController
             foreach ($lotRows as $row) {
                 $lotMap[$row['InventoryLot']['item_code']] = (float)$row[0]['lot_total'];
             }
-        }
 
-        $avgCostMap = [];
-        $avgCostRows = $this->InventoryLot->find('all', [
-            'fields' => ['InventoryLot.item_code', 'SUM(InventoryLot.remaining_qty * InventoryLot.unit_cost) AS total_cost', 'SUM(InventoryLot.remaining_qty) AS total_qty'],
-            'group' => ['InventoryLot.item_code'],
-            'recursive' => -1,
-        ]);
-        foreach ($avgCostRows as $row) {
-            $qty = (float)$row[0]['total_qty'];
-            $avgCostMap[$row['InventoryLot']['item_code']] = $qty > 0 ? ((float)$row[0]['total_cost'] / $qty) : 0;
+            $avgCostRows = $this->InventoryLot->find('all', [
+                'fields' => ['InventoryLot.item_code', 'SUM(InventoryLot.remaining_qty * InventoryLot.unit_cost) AS total_cost', 'SUM(InventoryLot.remaining_qty) AS total_qty'],
+                'group' => ['InventoryLot.item_code'],
+                'recursive' => -1,
+            ]);
+            foreach ($avgCostRows as $row) {
+                $qty = (float)$row[0]['total_qty'];
+                $avgCostMap[$row['InventoryLot']['item_code']] = $qty > 0 ? ((float)$row[0]['total_cost'] / $qty) : 0;
+            }
         }
 
         // 在庫比較条件でPHP側フィルタ（DB変更に強くするため簡易実装）
