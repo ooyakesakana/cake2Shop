@@ -21,6 +21,10 @@ $this->end(); ?>
 		</tr>
 	</table><?= $this->Form->end(); ?>
 
+	<?php if (empty($resultItems)): ?>
+		<p>登録済み商品はありません。</p>
+	<?php endif; ?>
+
 	<?php foreach ($resultItems as $item):
 		$code = $item['Item']['item_code'];
 		$rowLow = !empty($item['Item']['is_total_low']);

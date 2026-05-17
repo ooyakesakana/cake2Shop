@@ -160,7 +160,7 @@ class ItemsController extends AppController
 
         $this->loadModel('ShopItemPrice');
         $priceMap = [];
-        if (!empty($shopIds)) {
+        if (!empty($shopIds) && in_array('shop_item_prices', $sources, true)) {
             $priceRows = $this->ShopItemPrice->find('all', [
                 'fields' => ['ShopItemPrice.shop_id', 'ShopItemPrice.item_code', 'ShopItemPrice.sale_price', 'ShopItemPrice.margin_rate'],
                 'conditions' => ['ShopItemPrice.shop_id' => $shopIds],
