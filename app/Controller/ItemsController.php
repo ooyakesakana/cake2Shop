@@ -15,7 +15,7 @@ class ItemsController extends AppController
         $this->set('titleForLayout', '商品検索・一覧');
 
         // 検索フォーム初期値
-        $conditions = [];
+        $conditions = ['Item.is_active' => 1];
         $keyword = '';
         $category = '';
         $stockCompare = '';
@@ -24,6 +24,7 @@ class ItemsController extends AppController
         // カテゴリ候補を取得
         $categoryList = $this->Item->find('list', [
             'fields' => ['Item.category', 'Item.category'],
+            'conditions' => ['Item.is_active' => 1],
             'group' => ['Item.category'],
             'order' => ['Item.category' => 'ASC'],
             'recursive' => -1,
@@ -150,7 +151,7 @@ class ItemsController extends AppController
 
         $this->loadModel('Shop');
         $shops = $this->Shop->find('all', [
-            'fields' => ['Shop.shop_id', 'Shop.shop_name', 'Shop.fee_percent', 'Shop.is_shipping_included'],
+            'fields' => ['Shop.shop_id', 'Shop.shop_name', 'Shop.fee_percent', 'Shop.is_shipping_included', 'Shop.default_shipping_fee'],
             'conditions' => ['Shop.is_active' => 1],
             'order' => ['Shop.shop_name' => 'ASC'],
             'recursive' => -1,
@@ -174,13 +175,24 @@ class ItemsController extends AppController
         }
 
         $lowStockThreshold = 5;
-        $this->set(compact('resultItems', 'categoryList', 'keyword', 'category', 'stockCompare', 'stockValue', 'shops', 'lowStockThreshold', 'priceMap'));
+        $this->loadModel('ShippingFee');
+        $shippingFeeRows = $this->ShippingFee->find('all', [
+            'fields' => ['ShippingFee.id', 'ShippingFee.shipping_fee'],
+            'recursive' => -1,
+        ]);
+        $shippingFeeAmountMap = [];
+        foreach ($shippingFeeRows as $row) {
+            $shippingFeeAmountMap[(int)$row['ShippingFee']['id']] = (float)$row['ShippingFee']['shipping_fee'];
+        }
+
+        $this->set(compact('resultItems', 'categoryList', 'keyword', 'category', 'stockCompare', 'stockValue', 'shops', 'lowStockThreshold', 'priceMap', 'shippingFeeAmountMap'));
     }
 
     public function add()
     {
         $this->layout = 'layout';
         $this->set('titleForLayout', '商品登録');
+        $this->loadModel('ItemDescriptionTemplate');
 
         // 商品情報登録用フォーム
         $category = $this->Item->find('list', [
@@ -191,8 +203,50 @@ class ItemsController extends AppController
         ]);
         $this->set('category', $category);
 
+        $descriptionTemplates = $this->ItemDescriptionTemplate->find('all', [
+            'conditions' => ['ItemDescriptionTemplate.is_active' => 1],
+            'order' => ['ItemDescriptionTemplate.sort_order' => 'ASC', 'ItemDescriptionTemplate.id' => 'ASC'],
+            'recursive' => -1,
+        ]);
+        $this->set('descriptionTemplates', $descriptionTemplates);
+
         // 商品登録時
         if ($this->request->is('post')) {
+            if (!empty($this->request->data['ItemDescriptionTemplate'])) {
+                $template = $this->request->data['ItemDescriptionTemplate'];
+                $templateId = !empty($template['id']) ? (int)$template['id'] : null;
+
+                if (!empty($this->request->data['delete_template']) && $templateId) {
+                    $this->ItemDescriptionTemplate->id = $templateId;
+                    if ($this->ItemDescriptionTemplate->saveField('is_active', 0)) {
+                        $this->Session->setFlash('商品説明テンプレ文を削除しました', 'default', [], 'success');
+                    } else {
+                        $this->Session->setFlash('テンプレ文の削除に失敗しました', 'default', [], 'errMsg');
+                    }
+                    return $this->redirect(['action' => 'add']);
+                }
+
+                $template['template_text'] = trim((string)($template['template_text'] ?? ''));
+                if ($template['template_text'] === '') {
+                    $this->Session->setFlash('テンプレ文を入力してください', 'default', [], 'errMsg');
+                    return $this->redirect(['action' => 'add']);
+                }
+
+                if ($templateId) {
+                    $this->ItemDescriptionTemplate->id = $templateId;
+                } else {
+                    $this->ItemDescriptionTemplate->create();
+                }
+
+                if ($this->ItemDescriptionTemplate->save($template)) {
+                    $message = $templateId ? '商品説明テンプレ文を更新しました' : '商品説明テンプレ文を登録しました';
+                    $this->Session->setFlash($message, 'default', [], 'success');
+                    return $this->redirect(['action' => 'add']);
+                }
+                $this->Session->setFlash('テンプレ文の登録に失敗しました', 'default', [], 'errMsg');
+                return $this->redirect(['action' => 'add']);
+            }
+
             $input = $this->request->data['Item'];
 
             // カテゴリは入力テキスト優先
@@ -243,7 +297,11 @@ class ItemsController extends AppController
                 $this->ItemImage->save(['item_code' => $input['item_code'], 'file_name' => $savedFileName, 'image_order' => 1]);
                 if (!empty($this->request->data['Item']['sub_images']) && is_array($this->request->data['Item']['sub_images'])) {
                     $order = 2;
+                    $maxImageCount = 10;
                     foreach ($this->request->data['Item']['sub_images'] as $sub) {
+                        if ($order > $maxImageCount) {
+                            break;
+                        }
                         if (empty($sub['tmp_name']) || (int)$sub['error'] !== UPLOAD_ERR_OK) {
                             continue;
                         }
@@ -260,25 +318,27 @@ class ItemsController extends AppController
                     }
                 }
                 // 登録完了後、在庫登録へ進める画面に遷移
-                return $this->redirect(['action' => 'add_complete', $this->Item->id]);
+                return $this->redirect(['action' => 'add_complete', $input['item_code']]);
             }
             $this->Session->setFlash('商品の登録に失敗しました', 'default', [], 'errMsg');
         }
     }
 
-    public function add_complete($id = null)
+    public function add_complete($itemCode = null)
     {
         $this->layout = 'layout';
         $this->set('titleForLayout', '商品登録完了');
 
-        if (!$id || !$this->Item->exists($id)) {
+        if (!$itemCode || !$this->Item->exists($itemCode)) {
             throw new NotFoundException('商品が見つかりません');
         }
 
-        $item = $this->Item->find('first', ['conditions' => ['Item.id' => $id], 'recursive' => -1]);
+        $item = $this->Item->find('first', ['conditions' => ['Item.item_code' => $itemCode], 'recursive' => -1]);
         $this->loadModel('Shop');
         $this->loadModel('ShopInventory');
         $this->loadModel('ShopItemPrice');
+        $this->loadModel('InventoryLot');
+        $this->loadModel('ShippingFee');
 
         // 価格/在庫の続けて登録
         if ($this->request->is('post')) {
@@ -286,43 +346,113 @@ class ItemsController extends AppController
                 return $this->redirect(['action' => 'add']);
             }
             $d = $this->request->data['ShopEntry'];
-            if (!empty($d['shop_id'])) {
+            $selectedShop = (string)($d['shop_id'] ?? 'free');
+            $stockQty = (float)($d['stock_quantity'] ?? 0);
+
+            if ($selectedShop === 'free') {
+                if ($stockQty <= 0) {
+                    $this->Session->setFlash('フリー在庫数を入力してください', 'default', [], 'errMsg');
+                    return $this->redirect(['action' => 'add_complete', $itemCode]);
+                }
+
+                $this->InventoryLot->create();
+                $this->InventoryLot->save([
+                    'item_code' => $item['Item']['item_code'],
+                    'purchase_id' => null,
+                    'productization_id' => null,
+                    'quantity' => $stockQty,
+                    'remaining_qty' => $stockQty,
+                    'unit_cost' => (float)($item['Item']['base_price'] ?? 0),
+                    'cost_basis_type' => 'legacy_estimated',
+                    'registered_date' => date('Y-m-d'),
+                    'memo' => '商品登録後のフリー在庫登録（推定原価）',
+                ]);
+
+                $this->Session->setFlash('フリー在庫を登録しました', 'default', [], 'success');
+                return $this->redirect(['action' => 'add_complete', $itemCode]);
+            }
+
+            if ($selectedShop !== '') {
+                if ($d['sale_price'] === '' || $d['sale_price'] === null) {
+                    $this->Session->setFlash('ショップ在庫登録時は販売価格を入力してください', 'default', [], 'errMsg');
+                    return $this->redirect(['action' => 'add_complete', $itemCode]);
+                }
+
                 $price = (float)$d['sale_price'];
                 $cost = (float)($item['Item']['base_price'] ?? 0);
                 $shop = $this->Shop->find('first', [
-                    'conditions' => ['Shop.shop_id' => (int)$d['shop_id']],
-                    'fields' => ['Shop.fee_percent'],
+                    'conditions' => ['Shop.shop_id' => (int)$selectedShop],
+                    'fields' => ['Shop.shop_id', 'Shop.fee_percent', 'Shop.is_shipping_included', 'Shop.default_shipping_fee'],
                     'recursive' => -1,
                 ]);
                 $feePercent = $shop ? (float)$shop['Shop']['fee_percent'] : 0;
                 $feeAmount = $price * ($feePercent / 100);
-                $marginRate = ($price > 0) ? (($price - $feeAmount - $cost) / $price) * 100 : 0;
+                $defaultShippingCost = 0;
+                if ($shop && !empty($shop['Shop']['is_shipping_included']) && !empty($shop['Shop']['default_shipping_fee'])) {
+                    $shippingFee = $this->ShippingFee->find('first', [
+                        'fields' => ['ShippingFee.shipping_fee'],
+                        'conditions' => ['ShippingFee.id' => (int)$shop['Shop']['default_shipping_fee']],
+                        'recursive' => -1,
+                    ]);
+                    $defaultShippingCost = $shippingFee ? (float)$shippingFee['ShippingFee']['shipping_fee'] : 0;
+                }
+                $marginRate = ($price > 0) ? (($price - $defaultShippingCost - $feeAmount - $cost) / $price) * 100 : 0;
 
-                $existingPrice = $this->ShopItemPrice->find('first', ['conditions' => ['shop_id' => $d['shop_id'], 'item_code' => $item['Item']['item_code']], 'recursive' => -1]);
+                $existingPrice = $this->ShopItemPrice->find('first', ['conditions' => ['shop_id' => $selectedShop, 'item_code' => $item['Item']['item_code']], 'recursive' => -1]);
                 if ($existingPrice) {
                     $this->ShopItemPrice->id = $existingPrice['ShopItemPrice']['id'];
                 } else {
                     $this->ShopItemPrice->create();
                 }
-                $this->ShopItemPrice->save(['shop_id' => $d['shop_id'], 'item_code' => $item['Item']['item_code'], 'sale_price' => $price, 'margin_rate' => $marginRate]);
+                $this->ShopItemPrice->save(['shop_id' => $selectedShop, 'item_code' => $item['Item']['item_code'], 'sale_price' => $price, 'margin_rate' => $marginRate]);
 
                 if ($d['stock_quantity'] !== '') {
-                    $existingInv = $this->ShopInventory->find('first', ['conditions' => ['shop_id' => $d['shop_id'], 'item_code' => $item['Item']['item_code']], 'recursive' => -1]);
+                    $existingInv = $this->ShopInventory->find('first', ['conditions' => ['shop_id' => $selectedShop, 'item_code' => $item['Item']['item_code']], 'recursive' => -1]);
+                    $beforeStock = $existingInv ? (float)$existingInv['ShopInventory']['stock_quantity'] : 0;
+                    $afterStock = $stockQty;
+                    $lotStockBeforeAllocation = $this->InventoryLot->find('first', [
+                        'fields' => ['SUM(InventoryLot.remaining_qty) AS lot_total'],
+                        'conditions' => ['InventoryLot.item_code' => $item['Item']['item_code']],
+                        'recursive' => -1,
+                    ]);
+                    $registeredStockBeforeAllocation = $this->ShopInventory->find('first', [
+                        'fields' => ['SUM(ShopInventory.stock_quantity) AS registered_total'],
+                        'conditions' => ['ShopInventory.item_code' => $item['Item']['item_code']],
+                        'recursive' => -1,
+                    ]);
+                    $freeStockBeforeAllocation = max(0, (float)($lotStockBeforeAllocation[0]['lot_total'] ?? 0) - (float)($registeredStockBeforeAllocation[0]['registered_total'] ?? 0));
                     if ($existingInv) {
                         $this->ShopInventory->id = $existingInv['ShopInventory']['id'];
                     } else {
                         $this->ShopInventory->create();
                     }
-                    $this->ShopInventory->save(['shop_id' => $d['shop_id'], 'item_code' => $item['Item']['item_code'], 'stock_quantity' => (float)$d['stock_quantity']]);
+                    $this->ShopInventory->save(['shop_id' => $selectedShop, 'item_code' => $item['Item']['item_code'], 'stock_quantity' => $afterStock]);
+
+                    $addedQty = $afterStock - $beforeStock;
+                    $newLotQty = max(0, $addedQty - $freeStockBeforeAllocation);
+                    if ($newLotQty > 0) {
+                        $this->InventoryLot->create();
+                        $this->InventoryLot->save([
+                            'item_code' => $item['Item']['item_code'],
+                            'purchase_id' => null,
+                            'productization_id' => null,
+                            'quantity' => $newLotQty,
+                            'remaining_qty' => $newLotQty,
+                            'unit_cost' => (float)($item['Item']['base_price'] ?? 0),
+                            'cost_basis_type' => 'legacy_estimated',
+                            'registered_date' => date('Y-m-d'),
+                            'memo' => '商品登録後の在庫登録（推定原価）',
+                        ]);
+                    }
                 }
 
                 $this->Session->setFlash('ショップ価格/在庫を登録しました', 'default', [], 'success');
-                return $this->redirect(['action' => 'add_complete', $id]);
+                return $this->redirect(['action' => 'add_complete', $itemCode]);
             }
         }
 
         // 登録済みショップ一覧
-        $shops = $this->Shop->find('all', ['fields' => ['Shop.shop_id', 'Shop.shop_name', 'Shop.fee_percent', 'Shop.is_shipping_included'], 'conditions' => ['Shop.is_active' => 1], 'order' => ['Shop.shop_name' => 'ASC'], 'recursive' => -1]);
+        $shops = $this->Shop->find('all', ['fields' => ['Shop.shop_id', 'Shop.shop_name', 'Shop.fee_percent', 'Shop.is_shipping_included', 'Shop.default_shipping_fee'], 'conditions' => ['Shop.is_active' => 1], 'order' => ['Shop.shop_name' => 'ASC'], 'recursive' => -1]);
 
         // この商品のショップ別在庫を連想配列に
         $invRows = $this->ShopInventory->find('all', [
@@ -334,34 +464,81 @@ class ItemsController extends AppController
             $invMap[$r['ShopInventory']['shop_id']] = (int)$r['ShopInventory']['stock_quantity'];
         }
 
+        $lotStock = $this->InventoryLot->find('first', [
+            'fields' => ['SUM(InventoryLot.remaining_qty) AS lot_total'],
+            'conditions' => ['InventoryLot.item_code' => $item['Item']['item_code']],
+            'recursive' => -1,
+        ]);
+        $registeredStock = array_sum($invMap);
+        $freeStock = max(0, (float)($lotStock[0]['lot_total'] ?? 0) - (float)$registeredStock);
+
         $priceRows = $this->ShopItemPrice->find('all', ['conditions' => ['item_code' => $item['Item']['item_code']], 'recursive' => -1]);
         $priceMap = [];
         foreach ($priceRows as $pr) {
             $priceMap[$pr['ShopItemPrice']['shop_id']] = $pr['ShopItemPrice'];
         }
 
-        $this->set(compact('item', 'shops', 'invMap', 'priceMap'));
+        $shippingFeeRows = $this->ShippingFee->find('all', [
+            'fields' => ['ShippingFee.id', 'ShippingFee.shipping_fee'],
+            'recursive' => -1,
+        ]);
+        $shippingFeeAmountMap = [];
+        foreach ($shippingFeeRows as $row) {
+            $shippingFeeAmountMap[(int)$row['ShippingFee']['id']] = (float)$row['ShippingFee']['shipping_fee'];
+        }
+
+        $this->set(compact('item', 'shops', 'invMap', 'priceMap', 'freeStock', 'shippingFeeAmountMap'));
     }
 
-    public function edit($id = null)
+    public function edit($itemCode = null)
     {
         $this->layout = 'layout';
         $this->set('titleForLayout', '商品編集');
 
-        if (!$id || !$this->Item->exists($id)) {
+        if (!$itemCode || !$this->Item->exists($itemCode)) {
             throw new NotFoundException('商品が見つかりません');
         }
 
         if ($this->request->is(['post', 'put'])) {
-            $this->Item->id = $id;
+            $beforeItem = $this->Item->find('first', ['conditions' => ['Item.item_code' => $itemCode], 'recursive' => -1]);
+            $this->Item->id = $itemCode;
             if ($this->Item->save($this->request->data)) {
+                $newBasePrice = (float)($this->request->data['Item']['base_price'] ?? 0);
+                $oldBasePrice = $beforeItem ? (float)($beforeItem['Item']['base_price'] ?? 0) : $newBasePrice;
+                if ($newBasePrice !== $oldBasePrice) {
+                    $this->_updateEstimatedCost($itemCode, $newBasePrice);
+                }
                 $this->Session->setFlash('商品情報を更新しました', 'default', [], 'success');
                 return $this->redirect(['action' => 'main']);
             }
             $this->Session->setFlash('商品情報の更新に失敗しました', 'default', [], 'errMsg');
         } else {
-            $this->request->data = $this->Item->find('first', ['conditions' => ['Item.id' => $id], 'recursive' => -1]);
+            $this->request->data = $this->Item->find('first', ['conditions' => ['Item.item_code' => $itemCode], 'recursive' => -1]);
         }
+    }
+
+    private function _updateEstimatedCost($itemCode, $unitCost)
+    {
+        $this->loadModel('InventoryLot');
+        $this->loadModel('SaleLotUsage');
+
+        $db = $this->InventoryLot->getDataSource();
+        $quotedItemCode = $db->value($itemCode, 'string');
+        $quotedUnitCost = $db->value($unitCost, 'float');
+
+        $this->InventoryLot->updateAll(
+            ['InventoryLot.unit_cost' => $quotedUnitCost],
+            ['InventoryLot.item_code' => $itemCode, 'InventoryLot.cost_basis_type' => 'legacy_estimated']
+        );
+
+        $this->SaleLotUsage->query(
+            "UPDATE sale_lot_usages slu
+             INNER JOIN inventory_lots il ON il.id = slu.inventory_lot_id
+             SET slu.unit_cost = {$quotedUnitCost},
+                 slu.cogs_amount = slu.used_qty * {$quotedUnitCost}
+             WHERE il.item_code = {$quotedItemCode}
+               AND il.cost_basis_type = 'legacy_estimated'"
+        );
     }
 
     public function inventory()
@@ -419,6 +596,73 @@ class ItemsController extends AppController
         return $this->redirect(['action' => 'main']);
     }
 
+    public function quick_update_item()
+    {
+        $this->autoRender = false;
+        if (!$this->request->is('post')) {
+            return $this->redirect(['action' => 'main']);
+        }
+
+        $itemCode = trim((string)$this->request->data('item_code'));
+        if ($itemCode === '' || !$this->Item->exists($itemCode)) {
+            $this->Session->setFlash('商品情報の更新に失敗しました', 'default', [], 'errMsg');
+            return $this->redirect(['action' => 'main']);
+        }
+
+        $beforeItem = $this->Item->find('first', ['conditions' => ['Item.item_code' => $itemCode], 'recursive' => -1]);
+        $data = (array)$this->request->data('Item');
+        $saveData = [
+            'item_code' => $itemCode,
+            'item_name' => trim((string)($data['item_name'] ?? '')),
+            'category' => trim((string)($data['category'] ?? '')),
+            'item_size' => trim((string)($data['item_size'] ?? '')),
+            'base_price' => $data['base_price'] ?? null,
+            'memo' => trim((string)($data['memo'] ?? '')),
+        ];
+
+        $this->Item->id = $itemCode;
+        if ($this->Item->save($saveData)) {
+            $newBasePrice = (float)($saveData['base_price'] ?? 0);
+            $oldBasePrice = $beforeItem ? (float)($beforeItem['Item']['base_price'] ?? 0) : $newBasePrice;
+            if ($newBasePrice !== $oldBasePrice) {
+                $this->_updateEstimatedCost($itemCode, $newBasePrice);
+            }
+            $this->Session->setFlash('商品情報を更新しました', 'default', [], 'success');
+        } else {
+            $this->Session->setFlash('商品情報の更新に失敗しました', 'default', [], 'errMsg');
+        }
+        return $this->redirect(['action' => 'main']);
+    }
+
+    public function deactivate($itemCode = null)
+    {
+        $this->autoRender = false;
+        if (!$this->request->is('post') || !$itemCode || !$this->Item->exists($itemCode)) {
+            $this->Session->setFlash('商品の削除に失敗しました', 'default', [], 'errMsg');
+            return $this->redirect(['action' => 'main']);
+        }
+
+        $this->loadModel('InventoryLot');
+        $lot = $this->InventoryLot->find('first', [
+            'fields' => ['SUM(InventoryLot.remaining_qty) AS remaining_qty'],
+            'conditions' => ['InventoryLot.item_code' => $itemCode],
+            'recursive' => -1,
+        ]);
+        $remainingQty = $lot ? (float)$lot[0]['remaining_qty'] : 0;
+        if ($remainingQty > 0) {
+            $this->Session->setFlash('在庫が残っている商品は削除できません', 'default', [], 'errMsg');
+            return $this->redirect(['action' => 'main']);
+        }
+
+        $this->Item->id = $itemCode;
+        if ($this->Item->saveField('is_active', 0)) {
+            $this->Session->setFlash('商品を削除しました', 'default', [], 'success');
+        } else {
+            $this->Session->setFlash('商品の削除に失敗しました', 'default', [], 'errMsg');
+        }
+        return $this->redirect(['action' => 'main']);
+    }
+
 
     public function stock_adjustment()
     {
@@ -431,7 +675,12 @@ class ItemsController extends AppController
         $this->loadModel('InventoryAdjustment');
         $this->loadModel('Expense');
 
-        $items = $this->Item->find('list', ['fields' => ['Item.item_code', 'Item.item_name']]);
+        $itemRows = $this->Item->find('all', [
+            'fields' => ['Item.item_code', 'Item.item_name', 'Item.category', 'Item.item_size', 'Item.memo', 'Item.base_price'],
+            'conditions' => ['Item.is_active' => 1],
+            'order' => ['Item.item_code' => 'ASC'],
+            'recursive' => -1,
+        ]);
         $shops = $this->Shop->find('list', ['fields' => ['Shop.shop_id', 'Shop.shop_name'], 'conditions' => ['Shop.is_active' => 1]]);
         $selectedItemCode = $this->request->query('item_code');
 
@@ -440,6 +689,11 @@ class ItemsController extends AppController
             $qty = (float)$d['adjust_qty'];
             $itemCode = $d['item_code'];
             $shopId = !empty($d['shop_id']) ? (int)$d['shop_id'] : null;
+
+            if ($itemCode === '') {
+                $this->Session->setFlash('商品を検索して選択してください。', 'default', [], 'errMsg');
+                return $this->redirect(['action' => 'stock_adjustment']);
+            }
 
             $registered = (float)$this->ShopInventory->find('first', ['fields' => ['SUM(stock_quantity) AS s'], 'conditions' => ['item_code' => $itemCode], 'recursive' => -1])[0]['s'];
             $lotTotal = (float)$this->InventoryLot->find('first', ['fields' => ['SUM(remaining_qty) AS s'], 'conditions' => ['item_code' => $itemCode], 'recursive' => -1])[0]['s'];
@@ -487,9 +741,64 @@ class ItemsController extends AppController
         }
 
         $shopStockList = [];
+        $itemSearchRows = [];
+        $thumbMap = [];
+        $sources = $this->Item->getDataSource()->listSources();
+        if (in_array('item_images', $sources, true)) {
+            $this->loadModel('ItemImage');
+            $imageRows = $this->ItemImage->find('all', [
+                'fields' => ['ItemImage.item_code', 'ItemImage.file_name'],
+                'conditions' => ['ItemImage.image_order' => 1],
+                'recursive' => -1,
+            ]);
+            foreach ($imageRows as $row) {
+                $thumbMap[$row['ItemImage']['item_code']] = $row['ItemImage']['file_name'];
+            }
+        }
+        $lotRows = $this->InventoryLot->find('all', [
+            'fields' => ['InventoryLot.item_code', 'SUM(InventoryLot.remaining_qty) AS total_stock'],
+            'group' => ['InventoryLot.item_code'],
+            'recursive' => -1,
+        ]);
+        $lotMap = [];
+        foreach ($lotRows as $row) {
+            $lotMap[$row['InventoryLot']['item_code']] = (float)$row[0]['total_stock'];
+        }
+        $shopStockRows = $this->ShopInventory->find('all', [
+            'fields' => ['ShopInventory.item_code', 'SUM(ShopInventory.stock_quantity) AS shop_stock'],
+            'group' => ['ShopInventory.item_code'],
+            'recursive' => -1,
+        ]);
+        $shopStockMap = [];
+        foreach ($shopStockRows as $row) {
+            $shopStockMap[$row['ShopInventory']['item_code']] = (float)$row[0]['shop_stock'];
+        }
+        foreach ($itemRows as $row) {
+            $code = $row['Item']['item_code'];
+            $totalStock = isset($lotMap[$code]) ? $lotMap[$code] : 0;
+            $registeredStock = isset($shopStockMap[$code]) ? $shopStockMap[$code] : 0;
+            $itemSearchRows[] = [
+                'item_code' => $code,
+                'item_name' => $row['Item']['item_name'],
+                'category' => $row['Item']['category'],
+                'item_size' => $row['Item']['item_size'],
+                'memo' => $row['Item']['memo'],
+                'base_price' => $row['Item']['base_price'],
+                'thumb_image' => isset($thumbMap[$code]) ? $thumbMap[$code] : 'sample.png',
+                'total_stock' => $totalStock,
+                'free_stock' => $totalStock - $registeredStock,
+            ];
+        }
+        $selectedItem = null;
         if ($selectedItemCode) {
             $shopStockList = $this->ShopInventory->find('all', ['conditions' => ['item_code' => $selectedItemCode], 'recursive' => 0]);
+            foreach ($itemSearchRows as $row) {
+                if ($row['item_code'] === $selectedItemCode) {
+                    $selectedItem = $row;
+                    break;
+                }
+            }
         }
-        $this->set(compact('items', 'shops', 'selectedItemCode', 'shopStockList'));
+        $this->set(compact('itemSearchRows', 'shops', 'selectedItemCode', 'selectedItem', 'shopStockList'));
     }
 }

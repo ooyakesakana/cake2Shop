@@ -26,14 +26,40 @@ CREATE TABLE IF NOT EXISTS shops (
 CREATE TABLE IF NOT EXISTS items (
   item_code VARCHAR(30) NOT NULL,
   item_name VARCHAR(255) NOT NULL,
+  item_size VARCHAR(100) DEFAULT NULL,
   category VARCHAR(100) DEFAULT NULL,
   base_price DECIMAL(12,2) DEFAULT NULL,
+  description TEXT DEFAULT NULL,
+  memo TEXT DEFAULT NULL,
+  main_image VARCHAR(255) DEFAULT NULL,
   cost_basis_type ENUM('tracked','legacy_estimated') NOT NULL DEFAULT 'tracked',
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created DATETIME NULL,
   modified DATETIME NULL,
   PRIMARY KEY (item_code),
   KEY idx_items_category (category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS item_images (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  item_code VARCHAR(30) NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  image_order INT NOT NULL DEFAULT 1,
+  created DATETIME NULL,
+  modified DATETIME NULL,
+  PRIMARY KEY (id),
+  KEY idx_item_images_item_code_order (item_code, image_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS item_description_templates (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  template_text TEXT NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created DATETIME NULL,
+  modified DATETIME NULL,
+  PRIMARY KEY (id),
+  KEY idx_item_description_templates_active_order (is_active, sort_order, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS shipping_fees (
@@ -186,6 +212,7 @@ CREATE TABLE IF NOT EXISTS inventory_lots (
   quantity DECIMAL(12,2) NOT NULL,
   remaining_qty DECIMAL(12,2) NOT NULL,
   unit_cost DECIMAL(12,2) NOT NULL,
+  cost_basis_type ENUM('tracked','legacy_estimated') NOT NULL DEFAULT 'tracked',
   registered_date DATE NOT NULL,
   memo TEXT DEFAULT NULL,
   created DATETIME NULL,
@@ -193,6 +220,7 @@ CREATE TABLE IF NOT EXISTS inventory_lots (
   PRIMARY KEY (id),
   KEY idx_inventory_lots_item_code (item_code),
   KEY idx_inventory_lots_registered_date (registered_date),
+  KEY idx_inventory_lots_cost_basis (cost_basis_type, item_code, remaining_qty),
   CONSTRAINT fk_inventory_lots_item FOREIGN KEY (item_code) REFERENCES items(item_code) ON DELETE RESTRICT,
   CONSTRAINT fk_inventory_lots_purchase FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE SET NULL,
   CONSTRAINT fk_inventory_lots_productization FOREIGN KEY (productization_id) REFERENCES productizations(id) ON DELETE SET NULL,
@@ -229,6 +257,19 @@ CREATE TABLE IF NOT EXISTS shop_inventories (
   KEY idx_shop_inventories_item_code (item_code),
   CONSTRAINT fk_shop_inventories_shop FOREIGN KEY (shop_id) REFERENCES shops(shop_id) ON DELETE CASCADE,
   CONSTRAINT fk_shop_inventories_item FOREIGN KEY (item_code) REFERENCES items(item_code) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS shop_item_prices (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  shop_id INT UNSIGNED NOT NULL,
+  item_code VARCHAR(30) NOT NULL,
+  sale_price DECIMAL(12,2) NOT NULL DEFAULT 0,
+  margin_rate DECIMAL(7,2) NOT NULL DEFAULT 0,
+  created DATETIME NULL,
+  modified DATETIME NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_shop_item_prices_shop_item (shop_id, item_code),
+  KEY idx_shop_item_prices_item_code (item_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- -----------------------------

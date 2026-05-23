@@ -3,6 +3,7 @@ App::uses('AppModel', 'Model');
 
 class Item extends AppModel
 {
+    public $primaryKey = 'item_code';
 
     public $hasMany = [
         'Sale' => [

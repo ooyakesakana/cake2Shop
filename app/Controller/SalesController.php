@@ -34,6 +34,8 @@ class SalesController extends AppController
 		$this->loadModel('Item');
 		$this->loadModel('ShippingFee');
 		$this->loadModel('ShopInventory');
+		$this->loadModel('InventoryLot');
+		$this->loadModel('SaleLotUsage');
 
 		$shops = $this->Shop->find('list', [
 			'fields' => ['Shop.shop_id', 'Shop.shop_name'],
@@ -151,6 +153,15 @@ class SalesController extends AppController
 					if (!$this->SaleDetail->save($d)) {
 						throw new Exception('売上明細保存に失敗しました。');
 					}
+					$saleDetailId = $this->SaleDetail->id;
+
+					$this->_consumeInventoryLots(
+						$saleId,
+						$saleDetailId,
+						$d['item_code'],
+						(float)$d['quantity'],
+						$saveSale['sale_date']
+					);
 
 					$this->ShopInventory->updateAll(
 						['ShopInventory.stock_quantity' => 'ShopInventory.stock_quantity - ' . (float)$d['quantity']],
@@ -168,6 +179,90 @@ class SalesController extends AppController
 		}
 
 		$this->set(compact('shops', 'items', 'shippingFees', 'shopShippingMap'));
+	}
+
+	private function _consumeInventoryLots($saleId, $saleDetailId, $itemCode, $quantity, $saleDate)
+	{
+		$remaining = (float)$quantity;
+		$lots = $this->InventoryLot->find('all', [
+			'conditions' => [
+				'InventoryLot.item_code' => $itemCode,
+				'InventoryLot.remaining_qty >' => 0,
+			],
+			'order' => [
+				"CASE WHEN InventoryLot.cost_basis_type = 'legacy_estimated' THEN 0 ELSE 1 END ASC",
+				'InventoryLot.id ASC',
+			],
+			'recursive' => -1,
+		]);
+
+		foreach ($lots as $lot) {
+			if ($remaining <= 0) {
+				break;
+			}
+
+			$lotQty = (float)$lot['InventoryLot']['remaining_qty'];
+			$usedQty = min($remaining, $lotQty);
+			if ($usedQty <= 0) {
+				continue;
+			}
+
+			$this->_saveLotUsage($saleId, $saleDetailId, $lot['InventoryLot'], $usedQty, $saleDate);
+
+			$this->InventoryLot->id = $lot['InventoryLot']['id'];
+			$this->InventoryLot->saveField('remaining_qty', $lotQty - $usedQty);
+			$remaining -= $usedQty;
+		}
+
+		if ($remaining > 0) {
+			$this->loadModel('Item');
+			$item = $this->Item->find('first', [
+				'conditions' => ['Item.item_code' => $itemCode],
+				'fields' => ['Item.item_code', 'Item.base_price'],
+				'recursive' => -1,
+			]);
+			$unitCost = $item ? (float)($item['Item']['base_price'] ?? 0) : 0;
+
+			$this->InventoryLot->create();
+			if (!$this->InventoryLot->save([
+				'item_code' => $itemCode,
+				'purchase_id' => null,
+				'productization_id' => null,
+				'quantity' => $remaining,
+				'remaining_qty' => $remaining,
+				'unit_cost' => $unitCost,
+				'cost_basis_type' => 'legacy_estimated',
+				'registered_date' => $saleDate,
+				'memo' => '売上登録時の不足分自動作成（推定原価）',
+			])) {
+				throw new Exception('推定原価ロットの作成に失敗しました。');
+			}
+			$createdLot = $this->InventoryLot->find('first', [
+				'conditions' => ['InventoryLot.id' => $this->InventoryLot->id],
+				'recursive' => -1,
+			]);
+			$this->_saveLotUsage($saleId, $saleDetailId, $createdLot['InventoryLot'], $remaining, $saleDate);
+			$this->InventoryLot->id = $createdLot['InventoryLot']['id'];
+			$this->InventoryLot->saveField('remaining_qty', 0);
+		}
+	}
+
+	private function _saveLotUsage($saleId, $saleDetailId, $lot, $usedQty, $saleDate)
+	{
+		$unitCost = (float)$lot['unit_cost'];
+		$this->SaleLotUsage->create();
+		if (!$this->SaleLotUsage->save([
+			'sale_id' => $saleId,
+			'sale_detail_id' => $saleDetailId,
+			'inventory_lot_id' => $lot['id'],
+			'item_code' => $lot['item_code'],
+			'used_qty' => $usedQty,
+			'unit_cost' => $unitCost,
+			'cogs_amount' => $usedQty * $unitCost,
+			'sale_date' => $saleDate,
+		])) {
+			throw new Exception('売上原価履歴の保存に失敗しました。');
+		}
 	}
 
 	public function invoice_pdf($id = null)
