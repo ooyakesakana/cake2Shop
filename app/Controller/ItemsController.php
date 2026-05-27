@@ -20,6 +20,12 @@ class ItemsController extends AppController
         $category = '';
         $stockCompare = '';
         $stockValue = '';
+        $allowedLimits = [25 => 25, 50 => 50, 100 => 100, 200 => 200];
+        $limit = (int)$this->request->query('limit');
+        if (!isset($allowedLimits[$limit])) {
+            $limit = 50;
+        }
+        $page = max(1, (int)$this->request->query('page'));
 
         // カテゴリ候補を取得
         $categoryList = $this->Item->find('list', [
@@ -148,6 +154,13 @@ class ItemsController extends AppController
                 $resultItems[] = $item;
             }
         }
+        $totalItems = count($resultItems);
+        $totalPages = max(1, (int)ceil($totalItems / $limit));
+        if ($page > $totalPages) {
+            $page = $totalPages;
+        }
+        $offset = ($page - 1) * $limit;
+        $pagedResultItems = array_slice($resultItems, $offset, $limit);
 
         $this->loadModel('Shop');
         $shops = $this->Shop->find('all', [
@@ -185,7 +198,7 @@ class ItemsController extends AppController
             $shippingFeeAmountMap[(int)$row['ShippingFee']['id']] = (float)$row['ShippingFee']['shipping_fee'];
         }
 
-        $this->set(compact('resultItems', 'categoryList', 'keyword', 'category', 'stockCompare', 'stockValue', 'shops', 'lowStockThreshold', 'priceMap', 'shippingFeeAmountMap'));
+        $this->set(compact('resultItems', 'pagedResultItems', 'categoryList', 'keyword', 'category', 'stockCompare', 'stockValue', 'shops', 'lowStockThreshold', 'priceMap', 'shippingFeeAmountMap', 'allowedLimits', 'limit', 'page', 'totalItems', 'totalPages'));
     }
 
     public function add()

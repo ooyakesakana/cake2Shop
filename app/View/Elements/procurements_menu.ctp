@@ -1,3 +1,4 @@
+<h2>仕入れ管理メニュー</h2>
 <ul>
 	<li><?= $this->Html->link('仕入一覧', ['controller' => 'procurements', 'action' => 'purchases'], ['class' => 'btn btn--pink']) ?></li>
 	<li><?= $this->Html->link('仕入登録', ['controller' => 'procurements', 'action' => 'add_purchase'], ['class' => 'btn btn--pink']) ?></li>

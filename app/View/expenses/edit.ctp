@@ -4,7 +4,7 @@ echo $this->element('expenses_menu');
 $this->end();
 ?>
 <div class="main-area">
-	<h2>経費登録</h2>
+	<h2>経費編集</h2>
 	<?= $this->Form->create('Expense', ['type' => 'file']); ?>
 	<table class="shop-insert-table">
 		<tr>
@@ -32,29 +32,39 @@ $this->end();
 			</td>
 			<td><?= $this->Form->input('vendor_name', ['label' => false, 'placeholder' => '購入先']); ?></td>
 			<td>
-				<?= $this->Form->input('category_select', ['type' => 'select', 'label' => false, 'options' => $categoryOptions, 'empty' => '用途カテゴリを選択', 'id' => 'expense-category-select']); ?>
+				<?= $this->Form->input('category_select', ['type' => 'select', 'label' => false, 'options' => $categoryOptions, 'empty' => '用途カテゴリを選択', 'id' => 'expense-category-select', 'value' => $this->request->data['Expense']['category_name'] ?? '']); ?>
 				<?= $this->Form->input('category_name', ['label' => false, 'placeholder' => '新しいカテゴリを入力', 'id' => 'expense-category-name']); ?>
 				<div id="expense-category-hint" class="selected-item-summary"></div>
 			</td>
 			<td><?= $this->Form->input('amount', ['type' => 'number', 'label' => false, 'min' => 0, 'step' => '0.01', 'after' => ' 円']); ?></td>
 			<td><?= $this->Form->input('description', ['label' => false]); ?></td>
-			<td><?= $this->Form->input('status', ['type' => 'select', 'label' => false, 'options' => $expenseStatuses, 'value' => 'paid']); ?></td>
+			<td><?= $this->Form->input('status', ['type' => 'select', 'label' => false, 'options' => $expenseStatuses]); ?></td>
 		</tr>
 	</table>
 	<table class="shop-insert-table">
 		<tr>
 			<th>減価償却対象</th>
 			<th>家事按分率</th>
-			<th>証憑ファイル</th>
+			<th>証憑ファイル追加</th>
+			<th>登録済み証憑</th>
 			<th>メモ</th>
-			<th>登録</th>
+			<th>更新</th>
 		</tr>
 		<tr>
 			<td><?= $this->Form->input('is_depreciation', ['type' => 'checkbox', 'label' => '対象', 'id' => 'is-depreciation']); ?></td>
-			<td><?= $this->Form->input('business_use_rate', ['type' => 'number', 'label' => false, 'min' => 0, 'max' => 100, 'step' => '0.01', 'value' => 100, 'after' => ' %']); ?></td>
+			<td><?= $this->Form->input('business_use_rate', ['type' => 'number', 'label' => false, 'min' => 0, 'max' => 100, 'step' => '0.01', 'after' => ' %']); ?></td>
 			<td><input type="file" name="data[Attachment][files][]" multiple accept="image/*,application/pdf"></td>
+			<td>
+				<?php if (!empty($expense['Attachment'])): ?>
+					<?php foreach ($expense['Attachment'] as $attachment): ?>
+						<?= $this->Html->link(h($attachment['original_name']), '/' . $attachment['file_path'], ['target' => '_blank']); ?><br>
+					<?php endforeach; ?>
+				<?php else: ?>
+					-
+				<?php endif; ?>
+			</td>
 			<td><?= $this->Form->input('memo', ['type' => 'textarea', 'label' => false, 'rows' => 2]); ?></td>
-			<td><?= $this->Form->submit('登録', ['class' => 'sbm-btn btn--orange']); ?></td>
+			<td><?= $this->Form->submit('更新', ['class' => 'sbm-btn btn--orange']); ?></td>
 		</tr>
 	</table>
 	<?= $this->Form->end(); ?>
@@ -85,20 +95,24 @@ $this->end();
 	var expenseCategoryName = document.getElementById('expense-category-name');
 	var expenseCategoryHint = document.getElementById('expense-category-hint');
 	var categoryMeta = <?= json_encode($categoryMeta, JSON_UNESCAPED_UNICODE); ?>;
+	function updateCategoryHint() {
+		var meta = categoryMeta[expenseCategorySelect.value] || {};
+		var hints = [];
+		if (meta.accounting_type) {
+			hints.push('分類候補: ' + meta.accounting_type);
+		}
+		if (Number(meta.is_asset_candidate || 0) === 1) {
+			hints.push('減価償却候補');
+		}
+		expenseCategoryHint.textContent = hints.join(' / ');
+	}
 	if (expenseCategorySelect && expenseCategoryName) {
 		expenseCategorySelect.addEventListener('change', function() {
 			if (expenseCategorySelect.value) {
 				expenseCategoryName.value = expenseCategorySelect.value;
 			}
-			var meta = categoryMeta[expenseCategorySelect.value] || {};
-			var hints = [];
-			if (meta.accounting_type) {
-				hints.push('分類候補: ' + meta.accounting_type);
-			}
-			if (Number(meta.is_asset_candidate || 0) === 1) {
-				hints.push('減価償却候補');
-			}
-			expenseCategoryHint.textContent = hints.join(' / ');
+			updateCategoryHint();
 		});
+		updateCategoryHint();
 	}
 </script>

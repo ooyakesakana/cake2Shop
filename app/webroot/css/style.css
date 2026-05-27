@@ -30,9 +30,9 @@ body {
 }
 
 a:link,
-:visited, 
-:hover,
-:active {
+a:visited,
+a:hover,
+a:active {
 	color: #000000;
 	text-decoration: none;
 }
@@ -159,7 +159,11 @@ footer {
 /* ボタン */
 .btn,
 a.btn,
-button.btn {
+button.btn,
+a.btn:link,
+a.btn:visited,
+a.btn:hover,
+a.btn:active {
 	display: inline-block;
 	padding: 10px 20px;
 	color: #fff;
@@ -175,7 +179,11 @@ button.btn {
 	appearance: none;
 }
 
-.sbm-btn {
+.sbm-btn,
+a.sbm-btn:link,
+a.sbm-btn:visited,
+a.sbm-btn:hover,
+a.sbm-btn:active {
 	display: inline-block;
 	margin-right: 10px;
 	margin-right: 10px;
@@ -489,7 +497,7 @@ button.btn {
 }
 
 .item-main-area {
-	gap: 8px;
+	gap: 4px;
 }
 
 .compact-page-title {
@@ -503,7 +511,8 @@ button.btn {
 }
 
 .item-list-table {
-	margin-bottom: 10px;
+	margin-bottom: 4px;
+	margin-top: 4px;
 	table-layout: fixed;
 }
 
@@ -513,12 +522,19 @@ button.btn {
 
 .item-list-table th,
 .item-list-table td {
-	padding: 4px 6px;
-	font-size: 0.9rem;
+	padding: 2px 5px;
+	font-size: 0.86rem;
+	line-height: 1.25;
 }
 
 .item-list-thumb-cell {
-	width: 90px;
+	width: 64px;
+}
+
+.item-list-thumb {
+	height: 56px;
+	object-fit: cover;
+	width: 56px;
 }
 
 .item-list-name-col {
@@ -533,7 +549,7 @@ button.btn {
 }
 
 .item-list-actions {
-	width: 180px;
+	width: 150px;
 }
 
 .inline-delete-form {
@@ -542,12 +558,12 @@ button.btn {
 
 .item-list-actions .sbm-btn,
 .item-shop-panel .sbm-btn {
-	font-size: 0.82rem;
-	padding: 5px 9px;
+	font-size: 0.78rem;
+	padding: 3px 7px;
 }
 
 .item-shop-grid-cell {
-	padding: 6px;
+	padding: 3px;
 }
 
 .item-edit-field {
@@ -560,7 +576,7 @@ button.btn {
 }
 
 .item-edit-memo {
-	height: 42px;
+	height: 34px;
 	resize: vertical;
 }
 
@@ -578,11 +594,15 @@ button.btn {
 	cursor: not-allowed;
 }
 
+.expense-row--pending td {
+	background-color: #ffe4e4;
+}
+
 .item-shop-grid {
 	display: grid;
-	gap: 8px;
-	grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-	margin-top: 8px;
+	gap: 4px;
+	grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+	margin-top: 3px;
 }
 
 .item-shop-panel {
@@ -598,23 +618,31 @@ button.btn {
 .item-shop-panel__name {
 	background: #eee;
 	font-weight: bold;
-	padding: 4px 6px;
+	padding: 2px 5px;
 	text-align: center;
 }
 
 .item-shop-panel__body {
 	align-items: center;
 	display: flex;
-	gap: 8px;
+	gap: 4px;
 	justify-content: space-between;
-	padding: 6px;
+	padding: 3px 5px;
 	text-align: left;
 }
 
 .item-shop-panel__label,
 .item-shop-panel__price {
-	font-size: 0.86rem;
-	line-height: 1.5;
+	font-size: 0.8rem;
+	line-height: 1.25;
+}
+
+.item-pager {
+	align-items: center;
+	display: flex;
+	gap: 8px;
+	justify-content: center;
+	margin: 4px 0;
 }
 
 .item-shop-panel__label {

@@ -3,7 +3,7 @@
     <li>
         <?= $this->Html->link(
             '売上履歴',
-            ['controller' => 'sales', 'action' => 'main'],
+            ['controller' => 'sales', 'action' => 'index'],
             ['class' => 'btn btn--blue'],
         ) ?>
     </li>

@@ -10,6 +10,7 @@ $this->end(); ?>
 			<th>カテゴリ</th>
 			<th>在庫数</th>
 			<th>在庫条件</th>
+			<th>表示件数</th>
 			<th>検索</th>
 		</tr>
 		<tr>
@@ -17,15 +18,34 @@ $this->end(); ?>
 			<td><?= $this->Form->input('category', ['type' => 'select', 'label' => false, 'options' => $categoryList, 'empty' => 'すべて', 'value' => $category]); ?></td>
 			<td><?= $this->Form->input('stock_value', ['label' => false, 'value' => $stockValue, 'after' => ' 個']); ?></td>
 			<td><?= $this->Form->input('stock_compare', ['type' => 'select', 'label' => false, 'options' => ['gte' => '以上', 'lte' => '以下', 'eq' => '一致'], 'empty' => '条件なし', 'value' => $stockCompare]); ?></td>
+			<td><?= $this->Form->input('limit', ['type' => 'select', 'label' => false, 'options' => $allowedLimits, 'value' => $limit]); ?></td>
 			<td><?= $this->Form->submit('検索', ['class' => 'sbm-btn btn--blue']); ?></td>
 		</tr>
 	</table><?= $this->Form->end(); ?>
 
-	<?php if (empty($resultItems)): ?>
+	<?php if (empty($pagedResultItems)): ?>
 		<p>登録済み商品はありません。</p>
 	<?php endif; ?>
 
-	<?php foreach ($resultItems as $item):
+	<?php if (!empty($pagedResultItems)): ?>
+		<div class="item-pager">
+			<span><?= h($totalItems); ?>件中 <?= h(($page - 1) * $limit + 1); ?> - <?= h(min($page * $limit, $totalItems)); ?>件表示</span>
+			<?php
+				$queryBase = [
+					'keyword' => $keyword,
+					'category' => $category,
+					'stock_value' => $stockValue,
+					'stock_compare' => $stockCompare,
+					'limit' => $limit,
+				];
+			?>
+			<?= $page > 1 ? $this->Html->link('前へ', ['action' => 'main', '?' => $queryBase + ['page' => $page - 1]], ['class' => 'sbm-btn btn--blue']) : '<span class="sbm-btn btn--disabled">前へ</span>'; ?>
+			<span><?= h($page); ?> / <?= h($totalPages); ?></span>
+			<?= $page < $totalPages ? $this->Html->link('次へ', ['action' => 'main', '?' => $queryBase + ['page' => $page + 1]], ['class' => 'sbm-btn btn--blue']) : '<span class="sbm-btn btn--disabled">次へ</span>'; ?>
+		</div>
+	<?php endif; ?>
+
+	<?php foreach ($pagedResultItems as $item):
 		$code = $item['Item']['item_code'];
 		$formId = 'item-edit-' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $code);
 		$rowLow = !empty($item['Item']['is_total_low']);
@@ -36,7 +56,7 @@ $this->end(); ?>
 		<table class="shop-insert-table item-list-table js-item-row <?= $rowLow ? 'is-low-stock' : '' ?>">
 			<tr>
 				<td rowspan="2" class="item-list-thumb-cell">
-					<img src="<?= $this->Html->url('/img/items/' . h($item['Item']['thumb_image'])) ?>" alt="thumb" style="width:80px;height:80px;object-fit:cover;">
+					<img src="<?= $this->Html->url('/img/items/' . h($item['Item']['thumb_image'])) ?>" alt="thumb" class="item-list-thumb">
 				</td>
 				<th>商品コード</th>
 				<th class="item-list-name-col">商品名</th>
