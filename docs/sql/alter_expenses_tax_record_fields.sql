@@ -75,6 +75,21 @@ SET @sql = IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEM
   'SELECT ''expenses.business_use_rate already exists''');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+SET @sql = IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'expenses' AND COLUMN_NAME = 'gross_amount') = 0,
+  'ALTER TABLE expenses ADD COLUMN gross_amount DECIMAL(12,2) DEFAULT NULL AFTER amount',
+  'SELECT ''expenses.gross_amount already exists''');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'expenses' AND COLUMN_NAME = 'coupon_discount_amount') = 0,
+  'ALTER TABLE expenses ADD COLUMN coupon_discount_amount DECIMAL(12,2) DEFAULT NULL AFTER gross_amount',
+  'SELECT ''expenses.coupon_discount_amount already exists''');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'expenses' AND COLUMN_NAME = 'point_used_amount') = 0,
+  'ALTER TABLE expenses ADD COLUMN point_used_amount DECIMAL(12,2) DEFAULT NULL AFTER coupon_discount_amount',
+  'SELECT ''expenses.point_used_amount already exists''');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 CREATE TABLE IF NOT EXISTS attachments (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   target_type VARCHAR(30) NOT NULL,

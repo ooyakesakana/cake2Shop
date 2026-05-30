@@ -53,7 +53,9 @@ $this->end();
 			<th>支払先</th>
 			<th>カテゴリ</th>
 			<th>分類候補</th>
-			<th>金額</th>
+			<th>実支払額</th>
+			<th>購入総額</th>
+			<th>値引/ポイント</th>
 			<th>按分率</th>
 			<th>状態</th>
 			<th>減価償却</th>
@@ -77,13 +79,30 @@ $this->end();
 					<td><?= h($expense['Expense']['category_name']); ?></td>
 					<td><?= h($expense['Expense']['accounting_type'] ?? $expense['Expense']['tax_account_name'] ?? '-'); ?></td>
 					<td><?= h(number_format((float)$expense['Expense']['amount'])); ?> 円</td>
+					<td><?= isset($expense['Expense']['gross_amount']) && $expense['Expense']['gross_amount'] !== null ? h(number_format((float)$expense['Expense']['gross_amount'])) . ' 円' : '-'; ?></td>
+					<td>
+						<?php
+							$coupon = isset($expense['Expense']['coupon_discount_amount']) ? (float)$expense['Expense']['coupon_discount_amount'] : 0;
+							$point = isset($expense['Expense']['point_used_amount']) ? (float)$expense['Expense']['point_used_amount'] : 0;
+						?>
+						<?= ($coupon > 0 || $point > 0) ? 'クーポン ' . h(number_format($coupon)) . ' / ポイント ' . h(number_format($point)) . ' 円' : '-'; ?>
+					</td>
 					<td><?= isset($expense['Expense']['business_use_rate']) ? h((float)$expense['Expense']['business_use_rate']) . ' %' : '-'; ?></td>
 					<td><?= h($statusLabels[$status] ?? ($status ?: '-')); ?></td>
 					<td><?= !empty($expense['Expense']['is_depreciation']) ? ($isDepreciationPending ? '仮登録' : '対象') : '-'; ?></td>
 					<td>
 						<?php if (!empty($expense['Attachment'])): ?>
 							<?php foreach ($expense['Attachment'] as $attachment): ?>
-								<?= $this->Html->link(h($attachment['original_name']), '/' . $attachment['file_path'], ['target' => '_blank']); ?><br>
+								<?php
+									$fileUrl = $this->Html->url('/' . $attachment['file_path']);
+									$ext = strtolower(pathinfo($attachment['file_path'], PATHINFO_EXTENSION));
+									$isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
+								?>
+								<?php if ($isImage): ?>
+									<a href="<?= h($fileUrl); ?>" target="_blank"><img src="<?= h($fileUrl); ?>" alt="<?= h($attachment['original_name']); ?>" class="expense-attachment-thumb" width="64" height="48"></a>
+								<?php endif; ?>
+								<?= $this->Html->link(h($attachment['original_name']), '/' . $attachment['file_path'], ['target' => '_blank']); ?>
+								<?= !empty($attachment['memo']) ? '（' . h($attachment['memo']) . '）' : ''; ?><br>
 							<?php endforeach; ?>
 						<?php else: ?>
 							-
@@ -96,7 +115,7 @@ $this->end();
 			<?php endforeach; ?>
 		<?php else: ?>
 			<tr>
-				<td colspan="14">登録済み経費はありません。</td>
+				<td colspan="16">登録済み経費はありません。</td>
 			</tr>
 		<?php endif; ?>
 	</table>

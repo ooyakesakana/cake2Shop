@@ -598,6 +598,74 @@ a.sbm-btn:active {
 	background-color: #ffe4e4;
 }
 
+.expense-attachment-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-width: 280px;
+}
+
+.expense-attachment-card {
+	align-items: center;
+	border: 1px solid #ccc;
+	display: grid;
+	gap: 8px;
+	grid-template-columns: 180px minmax(140px, 1fr) auto;
+	padding: 6px;
+	text-align: left;
+}
+
+.expense-attachment-preview {
+	background: #fff;
+	border: 1px solid #ddd;
+	display: block;
+	height: 140px !important;
+	max-height: 140px !important;
+	max-width: 180px !important;
+	object-fit: contain;
+	position: relative;
+	width: 180px !important;
+	z-index: 1;
+}
+
+.expense-attachment-card a:hover .expense-attachment-preview {
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+	height: 420px !important;
+	max-height: 70vh !important;
+	max-width: 540px !important;
+	object-fit: contain;
+	position: absolute;
+	width: 540px !important;
+	z-index: 20;
+}
+
+.shop-insert-table .expense-attachment-thumb {
+	display: inline-block;
+	height: 48px !important;
+	margin-right: 4px;
+	max-height: 48px !important;
+	max-width: 64px !important;
+	object-fit: contain;
+	vertical-align: middle;
+	width: 64px !important;
+}
+
+.expense-attachment-file {
+	align-items: center;
+	background: #f0f0f0;
+	display: flex;
+	font-weight: bold;
+	height: 140px;
+	justify-content: center;
+	width: 180px;
+}
+
+.expense-attachment-meta {
+	font-size: 0.9rem;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
 .item-shop-grid {
 	display: grid;
 	gap: 4px;

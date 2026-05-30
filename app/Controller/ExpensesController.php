@@ -120,7 +120,11 @@ class ExpensesController extends AppController
             if (empty($data['expense_date'])) {
                 $data['expense_date'] = date('Y-m-d');
             }
-            $data['amount'] = (float)str_replace(',', '', mb_convert_kana((string)($data['amount'] ?? 0), 'n'));
+            if (trim((string)($data['amount'] ?? '')) === '') {
+                $this->Session->setFlash('実支払額を入力してください。', 'default', [], 'errMsg');
+                return;
+            }
+            $this->_normalizeExpenseAmounts($data);
             $data['business_use_rate'] = min(100, max(0, (float)($data['business_use_rate'] ?? 100)));
             $data['is_depreciation'] = !empty($data['is_depreciation']) ? 1 : 0;
             if (empty($data['status'])) {
@@ -208,7 +212,11 @@ class ExpensesController extends AppController
         if ($this->request->is(['post', 'put'])) {
             $data = $this->request->data['Expense'];
             unset($data['category_select']);
-            $data['amount'] = (float)str_replace(',', '', mb_convert_kana((string)($data['amount'] ?? 0), 'n'));
+            if (trim((string)($data['amount'] ?? '')) === '') {
+                $this->Session->setFlash('実支払額を入力してください。', 'default', [], 'errMsg');
+                return $this->redirect(['action' => 'edit', $id]);
+            }
+            $this->_normalizeExpenseAmounts($data);
             $data['business_use_rate'] = min(100, max(0, (float)($data['business_use_rate'] ?? 100)));
             $data['is_depreciation'] = !empty($data['is_depreciation']) ? 1 : 0;
             if (empty($data['status'])) {
@@ -251,6 +259,56 @@ class ExpensesController extends AppController
         $this->set(compact('expense', 'categoryOptions', 'categoryMeta', 'expenseStatuses'));
     }
 
+    public function delete_attachment($id = null)
+    {
+        $this->autoRender = false;
+        $this->loadModel('Attachment');
+
+        if (!$this->request->is('post')) {
+            throw new MethodNotAllowedException('不正なリクエストです。');
+        }
+
+        $attachment = $this->Attachment->find('first', [
+            'conditions' => ['Attachment.id' => $id, 'Attachment.target_type' => 'expense'],
+            'recursive' => -1,
+        ]);
+        if (!$attachment) {
+            throw new NotFoundException('証憑ファイルが見つかりません。');
+        }
+
+        $expenseId = (int)$attachment['Attachment']['target_id'];
+        $path = WWW_ROOT . str_replace(['/', '\\'], DS, $attachment['Attachment']['file_path']);
+
+        $this->Attachment->id = $id;
+        if ($this->Attachment->delete()) {
+            if (is_file($path)) {
+                @unlink($path);
+            }
+            $this->Session->setFlash('証憑ファイルを削除しました。', 'default', [], 'success');
+        } else {
+            $this->Session->setFlash('証憑ファイルの削除に失敗しました。', 'default', [], 'errMsg');
+        }
+
+        return $this->redirect(['action' => 'edit', $expenseId]);
+    }
+
+    private function _normalizeExpenseAmounts(&$data)
+    {
+        $fields = ['amount', 'gross_amount', 'coupon_discount_amount', 'point_used_amount'];
+        foreach ($fields as $field) {
+            $raw = trim((string)($data[$field] ?? ''));
+            if ($raw === '') {
+                $data[$field] = null;
+                continue;
+            }
+            $amount = (float)str_replace(',', '', mb_convert_kana($raw, 'n'));
+            $data[$field] = max(0, $amount);
+        }
+        if ($data['amount'] === null) {
+            $data['amount'] = 0;
+        }
+    }
+
     private function _saveAttachments($expenseId)
     {
         if (empty($this->request->data['Attachment']['files'])) {
@@ -288,6 +346,7 @@ class ExpensesController extends AppController
                 'file_path' => 'files/attachments/expenses/' . $fileName,
                 'mime_type' => $file['type'] ?? null,
                 'file_size' => (int)($file['size'] ?? 0),
+                'memo' => trim((string)($this->request->data['Attachment']['memo'] ?? '')),
             ]);
         }
     }
